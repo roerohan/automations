@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars*
+.env*
+!.env.example
+wrangler.local.jsonc
+coverage/
+.DS_Store

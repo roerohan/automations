@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "invoice-categorizer",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "ai": { "binding": "AI" },
+  "durable_objects": {
+    "bindings": [{ "name": "LEDGER", "class_name": "InvoiceLedger" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InvoiceLedger"] }],
+  "vars": {
+    "APP_URL": "https://invoice-categorizer.example.workers.dev",
+    "INVOICE_EMAIL": "invoices@example.com",
+    "ALLOWED_SENDERS": ["owner@example.com"],
+    "OWNER_EMAIL": "owner@example.com",
+    "ACCESS_TEAM_DOMAIN": "example.cloudflareaccess.com",
+    "ACCESS_AUD": "",
+    "GOOGLE_CLIENT_ID": "",
+    "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  },
+}

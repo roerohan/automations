@@ -1,0 +1,37 @@
+{
+  "name": "@automations/invoice-categorizer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "pnpm build && wrangler deploy",
+    "deploy:local": "CLOUDFLARE_CONFIG_PATH=wrangler.local.jsonc pnpm build && wrangler deploy --config dist/invoice_categorizer/wrangler.json"
+  },
+  "dependencies": {
+    "@cloudflare/kumo": "^2.13.2",
+    "@phosphor-icons/react": "^2.1.10",
+    "jose": "^6.1.0",
+    "postal-mime": "^2.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.54.8",
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "esbuild": "^0.28.2",
+    "miniflare": "4.20260730.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0",
+    "wrangler": "^4.127.0"
+  }
+}
