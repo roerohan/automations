@@ -407,3 +407,20 @@ footer {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.invoice-folder {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.picker-setup summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.picker-setup summary:focus-visible {
+  outline: 3px solid #6b8cff;
+  outline-offset: 3px;
+}
+.picker-setup code {
+  font-size: 12px;
+}

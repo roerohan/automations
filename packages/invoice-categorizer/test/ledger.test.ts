@@ -8,7 +8,9 @@ afterEach(async () => {
   await runtime?.dispose();
   runtime = undefined;
 });
-async function setup() {
+async function setup(
+  observe?: (request: { url: string; method: string }) => void,
+) {
   const bundle = await build({
     stdin: {
       contents: `
@@ -48,7 +50,8 @@ async function setup() {
       AI_MODEL: "test",
       ALLOWED_SENDERS: ["owner@example.com"],
     },
-    outboundService: async (request: { url: string }) => {
+    outboundService: async (request: { url: string; method: string }) => {
+      observe?.(request);
       const url = new URL(request.url);
       if (url.hostname === "oauth2.googleapis.com")
         return Response.json({ access_token: "test-access" });
@@ -56,6 +59,13 @@ async function setup() {
         return Response.json({ ids: [`drive-${++generated}`] });
       if (url.searchParams.has("alt"))
         return new Response("%PDF-test-original");
+      if (url.pathname.includes("/files/") && request.method === "GET")
+        return Response.json({
+          id: url.pathname.split("/").pop(),
+          name: "Team bills",
+          mimeType: "application/vnd.google-apps.folder",
+          capabilities: { canAddChildren: !url.pathname.endsWith("readonly") },
+        });
       return Response.json({});
     },
   });
@@ -120,4 +130,41 @@ describe("Durable Object ledger in workerd", () => {
     });
     expect(await call("consumeOAuth", "state")).toBeNull();
   });
+});
+
+it("selects a shared folder without renaming or recreating it, and uses it for uploads", async () => {
+  const writes: string[] = [];
+  const call = await setup((request) => {
+    if (request.method !== "GET" && request.url.includes("/drive/"))
+      writes.push(request.url);
+  });
+  await call("connectGoogle", "test-refresh");
+  await call("selectFolder", "shared-folder");
+  const reservation = await call<{ folderId: string }>(
+    "prepareUpload",
+    expense,
+  );
+  expect(reservation.folderId).toBe("shared-folder");
+  expect(writes).toEqual([]);
+});
+it("keeps the current destination when a selected folder is read-only", async () => {
+  const call = await setup();
+  await call("connectGoogle", "test-refresh");
+  await call("selectFolder", "shared-folder");
+  expect(await call("selectFolder", "readonly")).toHaveProperty("error");
+  expect(await call("config")).toMatchObject({ folderId: "shared-folder" });
+});
+it("reuses a created folder ID when the same request is retried", async () => {
+  const call = await setup();
+  await call("connectGoogle", "test-refresh");
+  const input = {
+    name: "Invoices",
+    parentId: "shared-folder",
+    requestId: crypto.randomUUID(),
+  };
+  const first = await call("createFolder", input);
+  expect(await call("createFolder", input)).toEqual(first);
+  expect(
+    await call("createFolder", { ...input, name: "Different" }),
+  ).toHaveProperty("error");
 });

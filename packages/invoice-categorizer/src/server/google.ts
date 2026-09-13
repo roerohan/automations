@@ -70,7 +70,7 @@ export async function createDriveFile(
       `\r\n--${boundary}--`,
     ]);
     response = await fetch(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
       {
         method: "POST",
         headers: {
@@ -82,16 +82,59 @@ export async function createDriveFile(
       },
     );
   } else {
-    response = await fetch("https://www.googleapis.com/drive/v3/files", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+    response = await fetch(
+      "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadata),
+        signal: AbortSignal.timeout(60_000),
       },
-      body: JSON.stringify(metadata),
-      signal: AbortSignal.timeout(60_000),
-    });
+    );
   }
   if (!response.ok && response.status !== 409)
     throw new Error(`Drive upload failed (${response.status}).`);
+}
+
+export class FolderError extends Error {}
+export interface DriveFolder {
+  id: string;
+  name: string;
+}
+export async function writableFolder(
+  token: string,
+  id: string,
+): Promise<DriveFolder> {
+  if (!/^[\w-]+$/.test(id)) throw new FolderError("Invalid Drive folder ID.");
+  let response: Response;
+  try {
+    response = await googleFetch(
+      token,
+      `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true&fields=id,name,mimeType,trashed,capabilities(canAddChildren)`,
+    );
+  } catch {
+    throw new FolderError(
+      "Cannot access this folder. Select it again in Google Drive and check your sharing permissions.",
+    );
+  }
+  const folder = (await response.json()) as {
+    id: string;
+    name: string;
+    mimeType: string;
+    trashed?: boolean;
+    capabilities?: { canAddChildren?: boolean };
+  };
+  if (
+    folder.trashed ||
+    folder.mimeType !== "application/vnd.google-apps.folder"
+  )
+    throw new FolderError("Select a folder that is not in the trash.");
+  if (!folder.capabilities?.canAddChildren)
+    throw new FolderError(
+      "You need permission to add files to this folder. Choose another folder or ask its owner for access.",
+    );
+  return { id: folder.id, name: folder.name };
 }

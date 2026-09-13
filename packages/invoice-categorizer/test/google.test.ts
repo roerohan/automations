@@ -40,3 +40,46 @@ it("adds authentication server-side and suppresses upstream errors", async () =>
     "Bearer secret",
   );
 });
+
+it("checks shared folder write capability without requesting broad Drive access", async () => {
+  const mock = vi.fn().mockResolvedValue(
+    Response.json({
+      id: "shared",
+      name: "Team bills",
+      mimeType: "application/vnd.google-apps.folder",
+      capabilities: { canAddChildren: true },
+    }),
+  );
+  vi.stubGlobal("fetch", mock);
+  const { writableFolder } = await import("../src/server/google");
+  expect(await writableFolder("token", "shared")).toEqual({
+    id: "shared",
+    name: "Team bills",
+  });
+  expect(
+    new URL(mock.mock.calls[0]![0]).searchParams.get("supportsAllDrives"),
+  ).toBe("true");
+});
+it.each([
+  { mimeType: "application/pdf", capabilities: { canAddChildren: true } },
+  {
+    mimeType: "application/vnd.google-apps.folder",
+    trashed: true,
+    capabilities: { canAddChildren: true },
+  },
+  {
+    mimeType: "application/vnd.google-apps.folder",
+    capabilities: { canAddChildren: false },
+  },
+])("rejects non-writable folder selections: %j", async (metadata) => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ id: "folder", name: "Folder", ...metadata }),
+      ),
+  );
+  const { writableFolder } = await import("../src/server/google");
+  await expect(writableFolder("token", "folder")).rejects.toThrow();
+});

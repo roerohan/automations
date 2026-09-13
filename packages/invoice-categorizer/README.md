@@ -42,7 +42,7 @@ The Worker name is `invoice-categorizer`; the Durable Object binding is `LEDGER`
 Create a Google Cloud project and enable **Google Drive API** and **Google Sheets API**. Configure the consent screen and a **Web application** OAuth client.
 
 - Authorized redirect URI: `https://YOUR-DASHBOARD-HOST/api/google/callback`.
-- Requested scope: `https://www.googleapis.com/auth/drive.file`. This limits access to files created or opened through this app. The app creates its own invoice folder and spreadsheet; it does not browse your existing Drive.
+- Requested scope: `https://www.googleapis.com/auth/drive.file`. This limits access to files created or opened through this app. The app creates its own spreadsheet and can use a folder you explicitly select with Google Picker.
 - Set `GOOGLE_CLIENT_ID` in your local Wrangler vars.
 - Store the client secret without putting it in source control:
 
@@ -50,11 +50,26 @@ Create a Google Cloud project and enable **Google Drive API** and **Google Sheet
   pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.local.jsonc
   ```
 
-Redeploy after changing vars. Open **Settings & connections → Connect Google**, and approve access. The server uses OAuth state, an HttpOnly cookie, and PKCE. The refresh token stays in server-side Durable Object storage, encrypted at rest by Cloudflare, and is never returned to the dashboard. Disconnect removes the stored refresh token; revoke the app in Google Account settings to revoke the grant itself.
+Redeploy after changing vars. Open **Settings & connections → Connect Google**, and approve access. The server uses OAuth state, an HttpOnly cookie, and PKCE. The refresh token stays in server-side Durable Object storage, encrypted at rest by Cloudflare, and is never returned to the dashboard. The folder picker receives a short-lived access token only when opened, through an owner-authenticated, same-origin endpoint. Disconnect removes the stored refresh token; revoke the app in Google Account settings to revoke the grant itself.
 
 Google OAuth apps in external Testing mode can have short-lived refresh tokens. Configure the appropriate publishing status for unattended use. Reconnect if Google revokes or expires the grant.
 
 Changing Google accounts does not migrate the existing Drive originals. Reconnect the same account for an existing ledger, or deploy a separate instance for another account.
+
+## Choose an invoice folder
+
+In **Settings & connections → Invoice folder**, use **Choose existing folder** to browse My Drive, Shared with me, or Shared drives. Google Picker grants access to the selected folder using the existing `drive.file` scope. The server checks that the selection is a folder, is not trashed, and allows adding files. Existing folders are never renamed. Changing the destination affects new uploads; existing invoice PDFs and the export spreadsheet stay in their current locations.
+
+**Create new folder** creates and selects a folder in My Drive, or inside a parent folder chosen with the picker. Retrying the most recent creation request reuses its preallocated Drive ID. If you abandon a failed request, check Drive before starting another creation because the first request may have succeeded.
+
+To enable browsing existing folders:
+
+1. Enable [Google Picker API](https://console.cloud.google.com/apis/library/picker.googleapis.com) in the same project as the OAuth client.
+2. Create an API key under [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials). Restrict it to **Google Picker API** and website referrers `https://YOUR-DASHBOARD-HOST/*` and `https://docs.google.com/*`. Google hosts the picker iframe on the latter domain.
+3. In ignored `wrangler.local.jsonc` vars, set `GOOGLE_PICKER_API_KEY` and `GOOGLE_PROJECT_NUMBER`, the numeric project number from the [project dashboard](https://console.cloud.google.com/home/dashboard).
+4. Redeploy with `pnpm deploy:local` and refresh the dashboard. Creating folders in My Drive is available without Picker setup.
+
+The API key is a browser credential and is visible to the owner. The OAuth client secret and refresh token stay on the server. Picker setup does not require a broader Drive scope or a second OAuth connection. See [Google's Picker setup instructions](https://developers.google.com/workspace/drive/picker/guides/web-picker).
 
 ## Processing and recovery
 

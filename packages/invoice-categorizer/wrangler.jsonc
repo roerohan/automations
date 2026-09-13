@@ -25,6 +25,8 @@
     "ACCESS_TEAM_DOMAIN": "example.cloudflareaccess.com",
     "ACCESS_AUD": "",
     "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_PICKER_API_KEY": "",
+    "GOOGLE_PROJECT_NUMBER": "",
     "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   },
 }

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Button, Input, Badge } from "@cloudflare/kumo";
 import "@cloudflare/kumo/styles/standalone";
 import "./style.css";
+import { InvoiceFolder } from "./invoice-folder";
 import { GoogleSetupGuide } from "./google-setup-guide";
 import type { Expense } from "../server/domain";
 
@@ -10,6 +11,7 @@ interface Dashboard {
   expenses: Expense[];
   connected: boolean;
   oauthConfigured: boolean;
+  pickerConfigured: boolean;
   invoiceEmail: string;
   allowedSenders: string[];
   config: {
@@ -54,16 +56,13 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"expenses" | "settings">("expenses");
   const [search, setSearch] = useState("");
-  const [folderName, setFolderName] = useState("Invoices");
   async function refresh() {
     const next = await api<Dashboard>("/api/dashboard");
     setData(next);
     return next;
   }
   useEffect(() => {
-    void refresh()
-      .then((next) => setFolderName(next.config.folderName))
-      .catch((e: Error) => setError(e.message));
+    void refresh().catch((e: Error) => setError(e.message));
   }, []);
   async function action(run: () => Promise<unknown>, message: string) {
     setBusy(true);
@@ -362,7 +361,8 @@ function App() {
               <h2>Google Drive & Sheets</h2>
               <p>
                 Connect your Google account to store originals and export your
-                ledger on demand. Only files created by this app are requested.
+                ledger on demand. Access is limited to files created or selected
+                through this app.
               </p>
               {!data.oauthConfigured && (
                 <p className="message">
@@ -408,39 +408,13 @@ function App() {
             <section className="panel google-setup-panel">
               <GoogleSetupGuide configured={data.oauthConfigured} />
             </section>
-            <section className="panel">
-              <h2>Invoice folder</h2>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void action(
-                    () => api("/api/settings", "PUT", { folderName }),
-                    "Folder settings saved.",
-                  );
-                }}
-              >
-                <label htmlFor="folder">Drive folder name</label>
-                <Input
-                  id="folder"
-                  value={folderName}
-                  onChange={(event) => setFolderName(event.target.value)}
-                  required
-                  maxLength={100}
-                />
-                <Button type="submit" disabled={busy}>
-                  Save settings
-                </Button>
-              </form>
-              {data.config.folderId && (
-                <a
-                  href={`https://drive.google.com/drive/folders/${data.config.folderId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open folder ↗
-                </a>
-              )}
-            </section>
+            <InvoiceFolder
+              connected={data.connected}
+              pickerConfigured={data.pickerConfigured}
+              folder={data.config}
+              refresh={refresh}
+              api={api}
+            />
             <section className="panel">
               <h2>Email intake</h2>
               <dl>

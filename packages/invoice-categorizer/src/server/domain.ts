@@ -37,8 +37,12 @@ export interface Expense {
   issues: string[];
   attempts: number;
 }
-export const settingsSchema = z.object({
-  folderName: z.string().trim().min(1).max(100),
+const driveFolderId = z.string().regex(/^[\w-]{1,200}$/);
+export const folderSelectionSchema = z.object({ folderId: driveFolderId });
+export const folderCreationSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  parentId: driveFolderId.optional(),
+  requestId: z.uuid(),
 });
 export function reviewIssues(fields: Extracted): string[] {
   const issues: string[] = [];

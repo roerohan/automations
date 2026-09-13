@@ -7,11 +7,14 @@ import {
   generateDriveId,
   googleFetch,
   tokenRequest,
+  writableFolder,
+  FolderError,
 } from "./google";
 
 interface Config {
   folderName: string;
   folderId?: string;
+  folderSelected?: boolean;
   spreadsheetId?: string;
   lastSync?: string;
 }
@@ -22,7 +25,7 @@ interface OAuthState {
 
 /** One object per deployment owns credentials, the ledger, and its retry queue. */
 export class InvoiceLedger extends DurableObject<Env> {
-  private folderPromise?: Promise<string>;
+  private folderTail: Promise<unknown> = Promise.resolve();
   private syncPromise?: Promise<{ spreadsheetId: string }>;
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -60,6 +63,9 @@ export class InvoiceLedger extends DurableObject<Env> {
       oauthConfigured: Boolean(
         this.env.GOOGLE_CLIENT_ID && this.env.GOOGLE_CLIENT_SECRET,
       ),
+      pickerConfigured: Boolean(
+        this.env.GOOGLE_PICKER_API_KEY && this.env.GOOGLE_PROJECT_NUMBER,
+      ),
       invoiceEmail: this.env.INVOICE_EMAIL,
       allowedSenders: this.env.ALLOWED_SENDERS,
     };
@@ -71,21 +77,86 @@ export class InvoiceLedger extends DurableObject<Env> {
       }
     );
   }
-  async updateSettings(folderName: string) {
-    const config = await this.config();
-    if (config.folderId && folderName !== config.folderName) {
-      const token = await this.accessToken();
-      await googleFetch(
-        token,
-        `https://www.googleapis.com/drive/v3/files/${config.folderId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: folderName }),
-        },
+  private withFolder<T>(run: () => Promise<T>): Promise<T> {
+    const next = this.folderTail.then(run);
+    this.folderTail = next.catch(() => undefined);
+    return next;
+  }
+  async pickerSession() {
+    if (!this.env.GOOGLE_PICKER_API_KEY || !this.env.GOOGLE_PROJECT_NUMBER)
+      throw new FolderError(
+        "Configure the Google Picker API key and project number first.",
       );
-    }
-    await this.ctx.storage.put("config", { ...config, folderName });
+    return {
+      accessToken: await this.accessToken(),
+      apiKey: this.env.GOOGLE_PICKER_API_KEY,
+      appId: this.env.GOOGLE_PROJECT_NUMBER,
+    };
+  }
+  async selectFolder(id: string) {
+    return this.withFolder(async () => {
+      const folder = await writableFolder(await this.accessToken(), id);
+      await this.ctx.storage.put("config", {
+        ...(await this.config()),
+        folderId: folder.id,
+        folderName: folder.name,
+        folderSelected: true,
+      });
+      return folder;
+    }).then(
+      (folder) => ({ folder }),
+      (error: unknown) => {
+        if (error instanceof FolderError) return { error: error.message };
+        throw error;
+      },
+    );
+  }
+  async createFolder(input: {
+    name: string;
+    parentId?: string;
+    requestId: string;
+  }) {
+    return this.withFolder(async () => {
+      const token = await this.accessToken();
+      if (input.parentId) await writableFolder(token, input.parentId);
+      // Keep the last create reservation so retrying an uncertain response reuses its Drive ID.
+      let pending = await this.ctx.storage.get<{
+        id: string;
+        name: string;
+        parentId?: string;
+        requestId: string;
+      }>("folderCreation");
+      if (pending?.requestId === input.requestId) {
+        if (pending.name !== input.name || pending.parentId !== input.parentId)
+          throw new FolderError(
+            "Folder creation details changed. Start a new request.",
+          );
+      } else {
+        pending = { ...input, id: await generateDriveId(token) };
+        await this.ctx.storage.put("folderCreation", pending);
+      }
+      await createDriveFile(
+        token,
+        pending.id,
+        pending.name,
+        "application/vnd.google-apps.folder",
+        pending.parentId,
+      );
+      const folder = await writableFolder(token, pending.id);
+      await this.ctx.storage.put("config", {
+        ...(await this.config()),
+        folderId: folder.id,
+        folderName: folder.name,
+        folderSelected: true,
+      });
+      return folder;
+    }).then(
+      (folder) => ({ folder }),
+      (error: unknown) => {
+        if (error instanceof FolderError) return { error: error.message };
+        throw error;
+      },
+    );
   }
   async saveOAuth(state: string, verifier: string) {
     // One pending authorization per owner. A new attempt invalidates the old one.
@@ -152,27 +223,27 @@ export class InvoiceLedger extends DurableObject<Env> {
     return { token, folderId, driveId: record.driveId };
   }
   private async ensureFolder(token: string): Promise<string> {
-    if (!this.folderPromise)
-      this.folderPromise = (async () => {
-        const config = await this.config();
-        if (!config.folderId) {
-          config.folderId = await generateDriveId(token);
-          await this.ctx.storage.put("config", {
-            ...(await this.config()),
-            folderId: config.folderId,
-          });
-        }
-        await createDriveFile(
-          token,
-          config.folderId,
-          config.folderName,
-          "application/vnd.google-apps.folder",
-        );
+    return this.withFolder(async () => {
+      const config = await this.config();
+      if (config.folderSelected && config.folderId) {
+        await writableFolder(token, config.folderId);
         return config.folderId;
-      })().finally(() => {
-        this.folderPromise = undefined;
-      });
-    return this.folderPromise;
+      }
+      if (!config.folderId) {
+        config.folderId = await generateDriveId(token);
+        await this.ctx.storage.put("config", {
+          ...(await this.config()),
+          folderId: config.folderId,
+        });
+      }
+      await createDriveFile(
+        token,
+        config.folderId,
+        config.folderName,
+        "application/vnd.google-apps.folder",
+      );
+      return config.folderId;
+    });
   }
   async finishUpload(id: string) {
     const expense = this.get(id);
@@ -206,7 +277,7 @@ export class InvoiceLedger extends DurableObject<Env> {
       const bytes = await (
         await googleFetch(
           token,
-          `https://www.googleapis.com/drive/v3/files/${expense.driveId}?alt=media`,
+          `https://www.googleapis.com/drive/v3/files/${expense.driveId}?alt=media&supportsAllDrives=true`,
         )
       ).arrayBuffer();
       const result = await this.env.AI.toMarkdown({

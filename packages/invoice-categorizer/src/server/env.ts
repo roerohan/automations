@@ -11,5 +11,7 @@ export interface Env {
   ACCESS_AUD: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  GOOGLE_PICKER_API_KEY?: string;
+  GOOGLE_PROJECT_NUMBER?: string;
   AI_MODEL: string;
 }

@@ -6,10 +6,16 @@ import {
   digest,
   isPdf,
   MAX_PDF_BYTES,
-  settingsSchema,
+  folderSelectionSchema,
+  folderCreationSchema,
 } from "./domain";
 import type { Env } from "./env";
-import { createDriveFile, GOOGLE_SCOPES, tokenRequest } from "./google";
+import {
+  createDriveFile,
+  GOOGLE_SCOPES,
+  tokenRequest,
+  FolderError,
+} from "./google";
 export { InvoiceLedger } from "./ledger";
 
 function ledger(env: Env) {
@@ -38,10 +44,18 @@ export default {
     try {
       if (url.pathname === "/api/dashboard" && request.method === "GET")
         return json(await store.dashboard());
-      if (url.pathname === "/api/settings" && request.method === "PUT") {
-        const settings = settingsSchema.parse(await request.json());
-        await store.updateSettings(settings.folderName);
-        return json({ ok: true });
+      if (url.pathname === "/api/google/picker" && request.method === "POST")
+        return json(await store.pickerSession());
+      if (url.pathname === "/api/folder" && request.method === "PUT") {
+        const input = folderSelectionSchema.parse(await request.json());
+        const result = await store.selectFolder(input.folderId);
+        return json(result, "error" in result ? 400 : 200);
+      }
+      if (url.pathname === "/api/folder" && request.method === "POST") {
+        const result = await store.createFolder(
+          folderCreationSchema.parse(await request.json()),
+        );
+        return json(result, "error" in result ? 400 : 200);
       }
       if (url.pathname === "/api/google/connect" && request.method === "POST") {
         if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
@@ -149,13 +163,18 @@ export default {
       const response = new Response(asset.body, asset);
       response.headers.set("Cache-Control", "private, no-store");
       response.headers.set("X-Content-Type-Options", "nosniff");
-      response.headers.set("Referrer-Policy", "no-referrer");
+      response.headers.set(
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin",
+      );
       response.headers.set(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "default-src 'self'; script-src 'self' https://apis.google.com; frame-src https://docs.google.com https://drive.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
       );
       return response;
-    } catch {
+    } catch (error) {
+      if (error instanceof FolderError)
+        return json({ error: error.message }, 400);
       return json(
         {
           error:
