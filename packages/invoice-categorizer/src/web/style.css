@@ -368,3 +368,42 @@ footer {
     width: 100%;
   }
 }
+.google-setup-panel {
+  grid-column: 1 / -1;
+}
+.google-setup-guide {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.google-setup-guide summary {
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 650;
+  padding: 8px 0;
+}
+.google-setup-guide summary:focus-visible {
+  outline: 3px solid #6b8cff;
+  outline-offset: 3px;
+}
+.google-setup-guide ol {
+  list-style: decimal;
+  padding-left: 24px;
+  max-width: 800px;
+}
+.google-setup-guide li {
+  padding-left: 8px;
+  margin-top: 24px;
+}
+.google-setup-guide code {
+  font-size: 12px;
+}
+.google-setup-guide pre,
+.google-setup-guide .setup-value {
+  display: block;
+  background: #f8f9fb;
+  border: 1px solid #e2e6ed;
+  border-radius: 6px;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

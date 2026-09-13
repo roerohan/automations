@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Button, Input, Badge } from "@cloudflare/kumo";
 import "@cloudflare/kumo/styles/standalone";
 import "./style.css";
+import { GoogleSetupGuide } from "./google-setup-guide";
 import type { Expense } from "../server/domain";
 
 interface Dashboard {
@@ -366,7 +367,7 @@ function App() {
               {!data.oauthConfigured && (
                 <p className="message">
                   Google OAuth credentials have not been configured. Follow the
-                  repository deployment guide to add your client ID and secret.
+                  setup guide below to add your client ID and secret.
                 </p>
               )}
               <div className="actions">
@@ -403,6 +404,9 @@ function App() {
                 Disconnecting removes the stored credential. You can also revoke
                 access in your Google account.
               </small>
+            </section>
+            <section className="panel google-setup-panel">
+              <GoogleSetupGuide configured={data.oauthConfigured} />
             </section>
             <section className="panel">
               <h2>Invoice folder</h2>
