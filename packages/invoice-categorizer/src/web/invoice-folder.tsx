@@ -40,8 +40,9 @@ export function InvoiceFolder({
   }
   return (
     <section className="panel invoice-folder">
+      <p className="section-label">02 / DESTINATION</p>
       <h2>Invoice folder</h2>
-      <p>
+      <p className="folder-destination">
         {folder.folderId ? (
           <a
             href={`https://drive.google.com/drive/folders/${folder.folderId}`}
@@ -51,7 +52,7 @@ export function InvoiceFolder({
             {folder.folderName} ↗
           </a>
         ) : (
-          "No folder selected. The first invoice will create an Invoices folder in My Drive."
+          "Your first receipt will create an Invoices folder in My Drive."
         )}
       </p>
       <div className="actions">
@@ -67,19 +68,18 @@ export function InvoiceFolder({
             })
           }
         >
-          Choose existing folder
+          Choose folder
         </Button>
         <Button
           disabled={busy || !connected}
           onClick={() => setCreating(!creating)}
         >
-          Create new folder
+          New folder
         </Button>
       </div>
       <p className="muted">
-        Choose from My Drive, folders shared with you, or a shared drive. You
-        need permission to add files. Changing the destination applies to new
-        uploads; existing PDFs stay where they are.
+        My Drive and shared folders supported. You need permission to add files.
+        Changing folders only affects new receipts.
       </p>
       {!connected && <p>Connect Google before choosing a folder.</p>}
       {error && (
@@ -156,7 +156,8 @@ export function InvoiceFolder({
           </div>
           <Button
             type="submit"
-            variant="primary"
+
+            className="primary-action"
             disabled={busy || !connected || !name.trim()}
           >
             {busy ? "Working…" : "Create and use folder"}

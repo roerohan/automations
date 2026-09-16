@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  Receipt,
+  SlidersHorizontal,
+  Sparkle,
+  ArrowDownLeft,
+} from "@phosphor-icons/react";
 import { Button, Input, Badge } from "@cloudflare/kumo";
 import "@cloudflare/kumo/styles/standalone";
 import "./style.css";
+import { ThemeSwitcher } from "./theme-switcher";
 import { InvoiceFolder } from "./invoice-folder";
 import { GoogleSetupGuide } from "./google-setup-guide";
 import type { Expense } from "../server/domain";
@@ -33,7 +40,7 @@ async function api<T>(
   });
   if (!response.ok) {
     const error = (await response.json().catch(() => ({
-      error: "Request failed. Refresh your Access session and try again.",
+      error: "Request failed. Refresh your session and try again.",
     }))) as { error: string };
     throw new Error(error.error);
   }
@@ -106,7 +113,10 @@ function App() {
     <div className="shell">
       <aside>
         <a className="brand" href="/">
-          ▤ <span>Automations</span>
+          <span className="brand-mark">
+            <Receipt size={22} aria-hidden="true" />
+          </span>
+          <span>Automations</span>
         </a>
         <div className="workspace">YOUR WORKSPACE</div>
         <nav aria-label="Main navigation">
@@ -114,34 +124,38 @@ function App() {
             aria-current={tab === "expenses" ? "page" : undefined}
             onClick={() => setTab("expenses")}
           >
-            Invoices
+            <Receipt size={18} aria-hidden="true" /> Invoices
           </button>
           <button
             aria-current={tab === "settings" ? "page" : undefined}
             onClick={() => setTab("settings")}
           >
-            Settings & connections
+            <SlidersHorizontal size={18} aria-hidden="true" /> Settings
           </button>
         </nav>
+        <ThemeSwitcher />
         <p className="aside-footer">
-          Invoice categorizer
-          <br />
-          <small>Private workspace · Cloudflare Access</small>
+          <Sparkle size={16} aria-hidden="true" />
+          <span>
+            Less admin. More clarity.
+            <br />
+            <small>AI-powered invoice sorting</small>
+          </span>
         </p>
       </aside>
-      <main>
+      <main key={tab}>
         <header>
           <div>
-            <p className="eyebrow">INVOICE CATEGORIZER</p>
+            <p className="eyebrow">YOUR WORKSPACE</p>
             <h1>
               {tab === "expenses"
                 ? "Your expenses, organized."
-                : "Settings & connections"}
+                : "Make it yours."}
             </h1>
             <p className="muted">
               {tab === "expenses"
                 ? "Forward a receipt. Keep the original. Know where your money goes."
-                : "Manage your storage connection and invoice destination."}
+                : "Choose where receipts land and how you keep your records."}
             </p>
           </div>
           <Badge>{data?.connected ? "Google connected" : "Setup needed"}</Badge>
@@ -173,7 +187,7 @@ function App() {
         ) : tab === "expenses" ? (
           <>
             <section className="metrics" aria-label="Expense summary">
-              <div className="panel">
+              <div className="panel spend-panel">
                 <p className="label">Recorded spend</p>
                 {totals.size ? (
                   [...totals].map(([currency, total]) => (
@@ -184,7 +198,7 @@ function App() {
                 ) : (
                   <strong className="metric">—</strong>
                 )}
-                <small>Ready expenses · all time · grouped by currency</small>
+                <small>All time · ready expenses only</small>
               </div>
               <div className="panel">
                 <p className="label">Invoices received</p>
@@ -200,7 +214,7 @@ function App() {
                     ).length
                   }
                 </strong>
-                <small>Review details before including in totals</small>
+                <small>Flagged for your review</small>
               </div>
             </section>
             {!data.connected && (
@@ -212,7 +226,10 @@ function App() {
                     ledger stays here.
                   </p>
                 </div>
-                <Button variant="primary" onClick={() => setTab("settings")}>
+                <Button
+                  className="primary-action"
+                  onClick={() => setTab("settings")}
+                >
                   Set up Google
                 </Button>
               </section>
@@ -236,7 +253,7 @@ function App() {
                     Refresh
                   </Button>
                   <Button
-                    variant="primary"
+                    className="primary-action"
                     disabled={busy || !data.connected}
                     onClick={() =>
                       void action(
@@ -249,20 +266,27 @@ function App() {
                   </Button>
                 </div>
               </div>
-              <Input
-                aria-label="Search expenses"
-                placeholder="Search vendor, category, filename or expense ID"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-              <div className="table-scroll">
+              <div className="expense-search">
+                <Input
+                  aria-label="Search expenses"
+                  placeholder="Search vendor, category, filename or expense ID"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Expenses table"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
                       <th>Expense</th>
                       <th>Date</th>
                       <th>Category</th>
-                      <th>Amount</th>
+                      <th className="amount">Amount</th>
                       <th>Status</th>
                       <th>Original</th>
                     </tr>
@@ -299,7 +323,11 @@ function App() {
                             : "—"}
                         </td>
                         <td>
-                          <Badge>{item.status}</Badge>
+                          <span
+                            className={`expense-status status-${item.status}`}
+                          >
+                            <Badge>{item.status}</Badge>
+                          </span>
                           {item.fields &&
                             item.driveId &&
                             !item.driveFilename &&
@@ -379,7 +407,9 @@ function App() {
               </div>
               {!filtered.length && (
                 <div className="empty">
-                  <span>▤</span>
+                  <span>
+                    <ArrowDownLeft size={32} aria-hidden="true" />
+                  </span>
                   <h3>
                     {search
                       ? "No matching expenses"
@@ -409,12 +439,12 @@ function App() {
           </>
         ) : (
           <div className="settings">
-            <section className="panel">
+            <section className="panel connection-panel">
+              <p className="section-label">01 / CONNECTION</p>
               <h2>Google Drive & Sheets</h2>
               <p>
-                Connect your Google account to store originals and export your
-                ledger on demand. Access is limited to files created or selected
-                through this app.
+                Save original receipts to Drive and send your expenses to Sheets
+                when you need them.
               </p>
               {!data.oauthConfigured && (
                 <p className="message">
@@ -424,7 +454,7 @@ function App() {
               )}
               <div className="actions">
                 <Button
-                  variant="primary"
+                  className="primary-action"
                   disabled={busy || !data.oauthConfigured}
                   onClick={() =>
                     void action(async () => {
@@ -453,12 +483,9 @@ function App() {
                 )}
               </div>
               <small>
-                Disconnecting removes the stored credential. You can also revoke
-                access in your Google account.
+                Only files you create or select here are accessible.
+                Disconnecting keeps your existing files.
               </small>
-            </section>
-            <section className="panel google-setup-panel">
-              <GoogleSetupGuide configured={data.oauthConfigured} />
             </section>
             <InvoiceFolder
               connected={data.connected}
@@ -467,34 +494,43 @@ function App() {
               refresh={refresh}
               api={api}
             />
-            <section className="panel">
-              <h2>Email intake</h2>
+            <section className="panel intake-panel">
+              <p className="section-label">03 / SEND RECEIPTS</p>
+              <h2>Your invoice inbox</h2>
               <dl>
                 <dt>Receiving address</dt>
-                <dd>{data.invoiceEmail}</dd>
+                <dd>
+                  <a href={`mailto:${data.invoiceEmail}`}>
+                    {data.invoiceEmail} ↗
+                  </a>
+                </dd>
                 <dt>Allowed senders</dt>
                 <dd>{data.allowedSenders.join(", ")}</dd>
               </dl>
               <p className="muted">
-                These addresses are managed in Wrangler configuration. Accepts
-                receipt text in forwarded emails and PDFs with selectable text,
-                up to 8 MiB each. PDF attachments take priority over the email
-                body. Photos and scanned documents are planned.
+                Forward a receipt email or attach a text-based PDF up to 8 MiB.
+                We extract the details and sort the expense for you.
               </p>
             </section>
-            <section className="panel">
-              <h2>Manual spreadsheet export</h2>
-              <p>
-                Sync creates or updates an app-owned spreadsheet snapshot. The
-                Durable Object remains the source of truth. Keep personal
-                formulas in a separate sheet.
-              </p>
+            <section className="panel export-panel">
+              <div>
+                <p className="section-label">04 / EXPORT</p>
+                <h2>Your records, ready to share</h2>
+                <p>
+                  Use Sync to Sheets on the Invoices page to update your
+                  spreadsheet. Sync replaces the exported data; keep your own
+                  formulas in a separate tab.
+                </p>
+              </div>
+              <Button onClick={() => setTab("expenses")}>
+                Go to invoices ↗
+              </Button>
+            </section>
+            <section className="panel google-setup-panel">
+              <GoogleSetupGuide configured={data.oauthConfigured} />
             </section>
           </div>
         )}
-        <footer>
-          Originals in your Drive. Records in your Cloudflare account.
-        </footer>
       </main>
     </div>
   );
