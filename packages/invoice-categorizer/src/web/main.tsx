@@ -12,6 +12,7 @@ import {
 import { Button, Input, Badge } from "@cloudflare/kumo";
 import "@cloudflare/kumo/styles/standalone";
 import "./style.css";
+import { ExpenseActions } from "./expense-actions";
 import { ThemeSwitcher } from "./theme-switcher";
 import { InvoiceFolder } from "./invoice-folder";
 import { GoogleSetupGuide } from "./google-setup-guide";
@@ -377,6 +378,9 @@ function App() {
                           </th>
                         );
                       })}
+                      <th scope="col">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -487,6 +491,14 @@ function App() {
                           ) : (
                             "Pending"
                           )}
+                        </td>
+                        <td>
+                          <ExpenseActions
+                            expense={item}
+                            api={api}
+                            refresh={refresh}
+                            onNotice={setNotice}
+                          />
                         </td>
                       </tr>
                     ))}

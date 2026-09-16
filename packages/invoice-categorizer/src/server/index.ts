@@ -3,6 +3,7 @@ import { receiptLinks } from "./receipt-links";
 import { receiptBody, bodyExpenseId } from "./email-body";
 import { authorize, sameOrigin } from "./auth";
 import {
+  extractedSchema,
   allowedEnvelope,
   authenticatedEmail,
   digest,
@@ -162,6 +163,26 @@ export default {
         if (url.pathname === "/api/rename") await store.renameExpense(input.id);
         else await store.retry(input.id);
         return json({ ok: true });
+      }
+      if (
+        url.pathname.startsWith("/api/expenses/") &&
+        ["PATCH", "DELETE"].includes(request.method)
+      ) {
+        const id = url.pathname.slice("/api/expenses/".length);
+        if (!/^[a-f0-9]{64}$/.test(id))
+          return json({ error: "Invalid expense ID." }, 400);
+        if (request.method === "DELETE")
+          return json(await store.deleteExpense(id));
+        const result = extractedSchema.strict().safeParse(await request.json());
+        if (!result.success)
+          return json(
+            {
+              error:
+                "Check the expense details: use a valid date, category, three-letter currency, and decimal amounts (up to three decimal places).",
+            },
+            400,
+          );
+        return json(await store.updateExpense(id, result.data));
       }
       if (url.pathname.startsWith("/api/"))
         return json({ error: "Not found." }, 404);

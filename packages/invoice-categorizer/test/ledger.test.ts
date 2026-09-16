@@ -273,3 +273,57 @@ it.each([
     expect(state.expenses[0]!.fields).toBeUndefined();
   },
 );
+
+it("edits metadata, recomputes review state, and deletes only the ledger record", async () => {
+  const requests: { url: string; method: string }[] = [];
+  const call = await setup((request) => requests.push(request));
+  await call("connectGoogle", "test-refresh");
+  await call("prepareUpload", expense);
+  await call("finishUpload", expense.id);
+  await call("runAlarm");
+  const before = (await call<{ expenses: Expense[] }>("dashboard"))
+    .expenses[0]!;
+  const fields = {
+    ...before.fields!,
+    vendor: "Corrected vendor",
+    category: "Travel",
+    total: "250",
+    subtotal: null,
+    tax: null,
+  };
+  await call("updateExpense", expense.id, fields);
+  const edited = (await call<{ expenses: Expense[] }>("dashboard"))
+    .expenses[0]!;
+  expect(edited.fields).toMatchObject({
+    vendor: "Corrected vendor",
+    category: "Travel",
+    total: "250",
+  });
+  expect(edited.status).toBe("ready");
+  expect(edited.driveId).toBe(before.driveId);
+  expect(edited.driveFilename).toBe(before.driveFilename);
+  await call("updateExpense", expense.id, { ...fields, total: null });
+  expect(
+    (await call<{ expenses: Expense[] }>("dashboard")).expenses[0]!.status,
+  ).toBe("review");
+  await expect(
+    call("updateExpense", expense.id, { ...fields, category: "Invalid" }),
+  ).rejects.toThrow();
+  requests.length = 0;
+  await call("deleteExpense", expense.id);
+  await call("deleteExpense", expense.id);
+  expect((await call<{ expenses: Expense[] }>("dashboard")).expenses).toEqual(
+    [],
+  );
+  expect(requests).toEqual([]);
+});
+it("rejects editing and deletion while processing is pending", async () => {
+  const call = await setup();
+  await call("connectGoogle", "test-refresh");
+  await call("prepareUpload", expense);
+  await expect(call("deleteExpense", expense.id)).rejects.toThrow();
+  await expect(call("updateExpense", expense.id, {})).rejects.toThrow();
+  expect(
+    (await call<{ expenses: Expense[] }>("dashboard")).expenses,
+  ).toHaveLength(1);
+});

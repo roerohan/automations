@@ -258,7 +258,7 @@ small {
 .shell button {
   border-radius: 8px;
 }
-.shell .primary-action {
+.primary-action {
   --text-color-kumo-default: #101010;
   background: var(--accent);
   color: var(--ink);
@@ -266,7 +266,7 @@ small {
   box-shadow: none;
   font-weight: 500;
 }
-.shell .primary-action:hover:not(:disabled) {
+.primary-action:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 .shell button:disabled {
@@ -314,7 +314,7 @@ td:first-child {
   max-width: 280px;
   overflow-wrap: anywhere;
 }
-td:last-child {
+td:nth-last-child(2) {
   min-width: 140px;
   max-width: 230px;
   overflow-wrap: anywhere;
@@ -780,4 +780,84 @@ th[aria-sort] .sort-heading {
 }
 .sort-heading svg {
   flex-shrink: 0;
+}
+
+.expense-dialog {
+  background: var(--paper);
+  color: var(--body);
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  width: min(560px, calc(100vw - 32px));
+}
+.expense-dialog h2 {
+  font-size: 22px;
+}
+.expense-dialog p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 12px 0 24px;
+}
+.expense-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.expense-fields label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+.expense-fields input,
+.expense-fields select {
+  width: 100%;
+  min-width: 0;
+}
+.expense-fields select {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+.expense-dialog .actions {
+  justify-content: flex-end;
+}
+.expense-menu {
+  background: var(--paper);
+  color: var(--ink);
+}
+td:last-child {
+  width: 48px;
+}
+@media (max-width: 480px) {
+  .expense-fields {
+    grid-template-columns: 1fr;
+  }
+  .expense-dialog button {
+    min-height: 44px;
+  }
+}
+
+.category-select {
+  position: relative;
+  display: block;
+}
+.expense-fields .category-select select {
+  appearance: none;
+  padding: 8px 40px 8px 12px;
+  min-height: 36px;
+}
+.category-select > svg {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
 }

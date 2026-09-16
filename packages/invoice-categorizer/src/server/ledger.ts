@@ -275,7 +275,8 @@ export class InvoiceLedger extends DurableObject<Env> {
     const name = invoiceFilename(expense);
     await renameDriveFile(await this.accessToken(), expense.driveId, name);
     // Read again after the network call so a concurrent retry cannot lose its state.
-    const current = this.get(id)!;
+    const current = this.get(id);
+    if (!current) return;
     this.put({
       ...current,
       driveFilename: name,
@@ -284,6 +285,28 @@ export class InvoiceLedger extends DurableObject<Env> {
           issue !== "Drive filename update failed. Use Rename file to retry.",
       ),
     });
+  }
+  updateExpense(id: string, input: unknown) {
+    const expense = this.get(id);
+    if (!expense || !["ready", "review", "failed"].includes(expense.status))
+      throw new Error("Wait for processing to finish before editing.");
+    const fields = extractedSchema.parse(input);
+    const issues = reviewIssues(fields);
+    this.put({
+      ...expense,
+      fields,
+      issues,
+      status: issues.length ? "review" : "ready",
+    });
+    return { ok: true };
+  }
+  deleteExpense(id: string) {
+    const expense = this.get(id);
+    if (!expense) return { ok: true };
+    if (!["ready", "review", "failed"].includes(expense.status))
+      throw new Error("Wait for processing to finish before deleting.");
+    this.ctx.storage.sql.exec("DELETE FROM expenses WHERE id = ?", id);
+    return { ok: true };
   }
   async retry(id: string) {
     const expense = this.get(id);
