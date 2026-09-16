@@ -761,3 +761,22 @@ dd {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
 }
+
+.sort-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sort-heading:hover,
+th[aria-sort] .sort-heading {
+  color: var(--ink);
+}
+.sort-heading svg {
+  flex-shrink: 0;
+}

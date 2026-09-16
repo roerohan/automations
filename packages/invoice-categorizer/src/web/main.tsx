@@ -5,6 +5,9 @@ import {
   SlidersHorizontal,
   Sparkle,
   ArrowDownLeft,
+  ArrowUp,
+  ArrowDown,
+  ArrowsDownUp,
 } from "@phosphor-icons/react";
 import { Button, Input, Badge } from "@cloudflare/kumo";
 import "@cloudflare/kumo/styles/standalone";
@@ -12,6 +15,7 @@ import "./style.css";
 import { ThemeSwitcher } from "./theme-switcher";
 import { InvoiceFolder } from "./invoice-folder";
 import { GoogleSetupGuide } from "./google-setup-guide";
+import { expenseColumns, sortExpenses, type ExpenseSort } from "./expense-sort";
 import type { Expense } from "../server/domain";
 
 interface Dashboard {
@@ -63,6 +67,10 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"expenses" | "settings">("expenses");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<ExpenseSort>({
+    key: "date",
+    direction: "descending",
+  });
   async function refresh() {
     const next = await api<Dashboard>("/api/dashboard");
     setData(next);
@@ -283,16 +291,47 @@ function App() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Expense</th>
-                      <th>Date</th>
-                      <th>Category</th>
-                      <th className="amount">Amount</th>
-                      <th>Status</th>
-                      <th>Original</th>
+                      {expenseColumns.map(({ key, label }) => {
+                        const active = sort.key === key;
+                        const nextDirection =
+                          active && sort.direction === "ascending"
+                            ? "descending"
+                            : "ascending";
+                        const Icon = !active
+                          ? ArrowsDownUp
+                          : sort.direction === "ascending"
+                            ? ArrowUp
+                            : ArrowDown;
+                        return (
+                          <th
+                            key={key}
+                            scope="col"
+                            className={key === "amount" ? "amount" : undefined}
+                            aria-sort={active ? sort.direction : undefined}
+                          >
+                            <button
+                              type="button"
+                              className="sort-heading"
+                              onClick={() =>
+                                setSort({ key, direction: nextDirection })
+                              }
+                              aria-label={`Sort ${label.toLowerCase()} ${nextDirection}${key === "amount" ? " within each currency" : ""}`}
+                              title={
+                                key === "amount"
+                                  ? "Sort amount within each currency"
+                                  : `Sort by ${label.toLowerCase()}`
+                              }
+                            >
+                              {label}
+                              <Icon size={14} aria-hidden="true" />
+                            </button>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((item) => (
+                    {sortExpenses(filtered, sort).map((item) => (
                       <tr key={item.id}>
                         <td>
                           <strong>
