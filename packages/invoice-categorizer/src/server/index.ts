@@ -1,4 +1,5 @@
 import PostalMime from "postal-mime";
+import { receiptLinks } from "./receipt-links";
 import { receiptBody, bodyExpenseId } from "./email-body";
 import { authorize, sameOrigin } from "./auth";
 import {
@@ -224,6 +225,7 @@ export default {
       message.setReject("The From address is not allowed.");
       return;
     }
+    const links = receiptLinks(parsed);
     const attachments = parsed.attachments.filter(
       (attachment) =>
         attachment.mimeType === "application/pdf" ||
@@ -252,6 +254,7 @@ export default {
         id,
         filename,
         source: "email",
+        receiptLinks: links,
         sender: message.from,
         receivedAt: new Date().toISOString(),
         status: "uploading",
@@ -299,6 +302,7 @@ export default {
         id,
         filename,
         source: "pdf",
+        receiptLinks: links,
         sender: message.from,
         receivedAt: new Date().toISOString(),
         status: "uploading",

@@ -5,7 +5,7 @@ Forward a receipt email or invoice PDF to an email address on your Cloudflare do
 ## What v1 includes
 
 - Forwarded email receipts with readable plain text or HTML, including cab and flight receipts. Without a PDF attachment, the original email is stored as `.eml` in Drive and its body is extracted. PDF attachments take priority; we do not also create an expense from their covering email.
-- One receipt per body. Non-receipts and multiple-purchase threads are held for review. Image-only bodies and receipts available only through external links are not supported. No remote email images or links are fetched.
+- One receipt per body. Non-receipts and multiple-purchase threads are held for review. Image-only bodies and receipts available only through external links are not supported. No remote email images or links are fetched. Receipt and download links are saved as metadata and shown next to the original in the dashboard. These links open on the provider website and may require login or expire; they do not download a separate PDF into Drive. Only HTTPS links without embedded credentials are accepted, with at most five per email.
 
 - Exact receiving address and sender allowlist in Wrangler.
 - PDF attachments with selectable text, up to 8 MiB each, five per message, and a 12 MiB total message limit.

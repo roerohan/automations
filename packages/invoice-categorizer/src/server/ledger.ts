@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import PostalMime from "postal-mime";
+import { receiptLinks } from "./receipt-links";
 import { receiptBody } from "./email-body";
 import type { Env } from "./env";
 import {
@@ -315,7 +316,9 @@ export class InvoiceLedger extends DurableObject<Env> {
       ).arrayBuffer();
       let text: string;
       if (expense.source === "email") {
-        text = receiptBody(await PostalMime.parse(bytes));
+        const email = await PostalMime.parse(bytes);
+        text = receiptBody(email);
+        expense.receiptLinks = receiptLinks(email);
       } else {
         const result = await this.env.AI.toMarkdown({
           name: expense.filename,

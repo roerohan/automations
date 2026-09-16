@@ -207,8 +207,15 @@ it("ingests a forwarded body, uploads the email, and extracts it from Drive", as
   const call = await setup();
   await call("connectGoogle", "test-refresh");
   const raw =
-    "From: owner@example.com\r\nSubject: Fwd: Example Cab receipt\r\nContent-Type: text/html\r\n\r\n<h1>Example Cab</h1><p>Receipt INV-1 on 2026-09-13, Total INR 118.00</p>";
+    "From: owner@example.com\r\nSubject: Fwd: Example Cab receipt\r\nContent-Type: text/html\r\n\r\n<h1>Example Cab</h1><p>Receipt INV-1 on 2026-09-13, Total INR 118.00</p><a href='https://cab.example/receipt?token=test'>Download receipt</a>";
   expect(await call("ingest", raw)).toEqual({});
+  const ingested = await call<{ expenses: Expense[] }>("dashboard");
+  expect(ingested.expenses[0]!.receiptLinks).toEqual([
+    {
+      url: "https://cab.example/receipt?token=test",
+      label: "Download receipt",
+    },
+  ]);
   expect(await call("ingest", raw)).toEqual({});
   await call("runAlarm");
   const state = await call<{ expenses: Expense[] }>("dashboard");

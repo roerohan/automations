@@ -30,6 +30,7 @@ export interface Expense {
   id: string;
   filename: string;
   source?: "pdf" | "email";
+  receiptLinks?: { url: string; label: string }[];
   receivedAt: string;
   sender: string;
   driveId?: string;

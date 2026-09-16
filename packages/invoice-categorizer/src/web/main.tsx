@@ -338,6 +338,26 @@ function App() {
                           )}
                         </td>
                         <td>
+                          {item.receiptLinks?.map((link, index) => (
+                            <div key={link.url}>
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`${link.label} · ${new URL(link.url).hostname} · Sign-in may be required`}
+                              >
+                                Download receipt
+                                {item.receiptLinks!.length > 1
+                                  ? ` ${index + 1}`
+                                  : ""}{" "}
+                                ↗
+                              </a>
+                              <small>
+                                {new URL(link.url).hostname} · May require
+                                sign-in
+                              </small>
+                            </div>
+                          ))}
                           {item.driveId ? (
                             <a
                               href={`https://drive.google.com/file/d/${item.driveId}/view`}
