@@ -101,7 +101,7 @@ nav {
   display: grid;
   gap: 8px;
 }
-nav button {
+nav a {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -115,11 +115,12 @@ nav button {
   font-size: 14px;
   cursor: pointer;
 }
-nav button:hover {
+nav a:hover {
+  text-decoration: none;
   background: var(--surface);
   color: var(--ink);
 }
-nav button[aria-current] {
+nav a[aria-current] {
   background: var(--ink);
   color: var(--text-on-dark);
   font-weight: 500;
@@ -594,7 +595,7 @@ dd {
     margin-top: 16px;
     gap: 8px;
   }
-  nav button {
+  nav a {
     flex: 1;
     justify-content: center;
     padding: 12px;
@@ -661,7 +662,7 @@ dd {
   border-color: #454545;
 }
 :root[data-mode="dark"] .brand-mark,
-:root[data-mode="dark"] nav button[aria-current] {
+:root[data-mode="dark"] nav a[aria-current] {
   background: #f2f2f2;
   color: #101010;
 }

@@ -65,7 +65,50 @@ function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"expenses" | "settings">("expenses");
+  const [tab, setTab] = useState<"expenses" | "settings">(() =>
+    window.location.pathname.replace(/\/$/, "") === "/settings"
+      ? "settings"
+      : "expenses",
+  );
+  function navigate(page: "expenses" | "settings") {
+    const path = page === "expenses" ? "/invoices" : "/settings";
+    if (window.location.pathname !== path)
+      window.history.pushState(null, "", path);
+    setTab(page);
+    window.scrollTo(0, 0);
+  }
+  function followPage(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    page: "expenses" | "settings",
+  ) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    navigate(page);
+  }
+  useEffect(() => {
+    if (window.location.pathname === "/") {
+      window.history.replaceState(
+        null,
+        "",
+        `/invoices${window.location.search}${window.location.hash}`,
+      );
+    }
+    const onPopState = () =>
+      setTab(
+        window.location.pathname.replace(/\/$/, "") === "/settings"
+          ? "settings"
+          : "expenses",
+      );
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ExpenseSort>({
     key: "date",
@@ -120,7 +163,11 @@ function App() {
   return (
     <div className="shell">
       <aside>
-        <a className="brand" href="/">
+        <a
+          className="brand"
+          href="/invoices"
+          onClick={(event) => followPage(event, "expenses")}
+        >
           <span className="brand-mark">
             <Receipt size={22} aria-hidden="true" />
           </span>
@@ -128,18 +175,20 @@ function App() {
         </a>
         <div className="workspace">YOUR WORKSPACE</div>
         <nav aria-label="Main navigation">
-          <button
+          <a
+            href="/invoices"
             aria-current={tab === "expenses" ? "page" : undefined}
-            onClick={() => setTab("expenses")}
+            onClick={(event) => followPage(event, "expenses")}
           >
             <Receipt size={18} aria-hidden="true" /> Invoices
-          </button>
-          <button
+          </a>
+          <a
+            href="/settings"
             aria-current={tab === "settings" ? "page" : undefined}
-            onClick={() => setTab("settings")}
+            onClick={(event) => followPage(event, "settings")}
           >
             <SlidersHorizontal size={18} aria-hidden="true" /> Settings
-          </button>
+          </a>
         </nav>
         <ThemeSwitcher />
         <p className="aside-footer">
@@ -236,7 +285,7 @@ function App() {
                 </div>
                 <Button
                   className="primary-action"
-                  onClick={() => setTab("settings")}
+                  onClick={() => navigate("settings")}
                 >
                   Set up Google
                 </Button>
@@ -561,7 +610,7 @@ function App() {
                   formulas in a separate tab.
                 </p>
               </div>
-              <Button onClick={() => setTab("expenses")}>
+              <Button onClick={() => navigate("expenses")}>
                 Go to invoices ↗
               </Button>
             </section>

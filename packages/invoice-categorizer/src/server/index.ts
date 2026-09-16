@@ -137,7 +137,7 @@ export default {
         return new Response(null, {
           status: 303,
           headers: {
-            Location: env.APP_URL,
+            Location: `${env.APP_URL}/settings`,
             "Set-Cookie": cookie("", 0),
             "Cache-Control": "no-store",
           },
