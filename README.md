@@ -2,9 +2,9 @@
 
 Small, self-hosted automations for Cloudflare. Each package is an independent Worker with its own configuration, deployment, and documentation.
 
-| Automation                                          | What it does                                                                                                                         | Status        |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
-| [Invoice categorizer](packages/invoice-categorizer) | Receives PDF invoices by email, stores originals in Google Drive, extracts expenses with Workers AI, and exports to Sheets on demand | Early preview |
+| Automation                                          | What it does                                                                                                                                       | Status        |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| [Invoice categorizer](packages/invoice-categorizer) | Receives forwarded receipts and PDF invoices, stores originals in Google Drive, extracts expenses with Workers AI, and exports to Sheets on demand | Early preview |
 
 ## Workspace
 
