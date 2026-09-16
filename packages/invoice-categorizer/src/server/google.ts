@@ -111,14 +111,65 @@ export async function writableFolder(
   if (!/^[\w-]+$/.test(id)) throw new FolderError("Invalid Drive folder ID.");
   let response: Response;
   try {
-    response = await googleFetch(
-      token,
+    response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true&fields=id,name,mimeType,trashed,capabilities(canAddChildren)`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(60_000),
+      },
     );
   } catch {
     throw new FolderError(
-      "Cannot access this folder. Select it again in Google Drive and check your sharing permissions.",
+      "Could not reach Google Drive. Try selecting the folder again.",
     );
+  }
+  if (!response.ok) {
+    // Interpret only known machine-readable reasons. Never expose upstream messages,
+    // which can contain file IDs, account details, or credentials.
+    const body = (await response.json().catch(() => null)) as {
+      error?: {
+        errors?: { reason?: string }[];
+        details?: { reason?: string }[];
+      };
+    } | null;
+    const reasons = [
+      ...(Array.isArray(body?.error?.errors) ? body.error.errors : []),
+      ...(Array.isArray(body?.error?.details) ? body.error.details : []),
+    ].map((item) => item?.reason);
+    let message: string;
+    if (
+      reasons.includes("accessNotConfigured") ||
+      reasons.includes("SERVICE_DISABLED")
+    )
+      message =
+        "Google Drive API is disabled for the OAuth project. Enable it in the same Google Cloud project as your OAuth client, then retry.";
+    else if (response.status === 401)
+      message =
+        "Google authorization was rejected. Reconnect Google in Settings, then select the folder again.";
+    else if (
+      reasons.includes("insufficientPermissions") ||
+      reasons.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT")
+    )
+      message =
+        "Google has not granted the required file access. Reconnect Google and approve the requested Drive permission.";
+    else if (response.status === 404)
+      message =
+        "Google cannot find this folder for the connected account. Select it with the same Google account connected to this app, and check that Picker and OAuth use the same project.";
+    else if (
+      response.status === 429 ||
+      response.status >= 500 ||
+      reasons.includes("rateLimitExceeded") ||
+      reasons.includes("userRateLimitExceeded")
+    )
+      message =
+        "Google Drive is temporarily unavailable or rate-limited. Wait a moment and try again.";
+    else if (response.status === 403)
+      message =
+        "Google denied access to this folder. Check sharing permissions and any Workspace restrictions for the connected account.";
+    else
+      message =
+        "Google rejected the folder lookup. Retry and report this status if it persists.";
+    throw new FolderError(`${message} (Drive HTTP ${response.status})`);
   }
   const folder = (await response.json()) as {
     id: string;

@@ -83,3 +83,52 @@ it.each([
   const { writableFolder } = await import("../src/server/google");
   await expect(writableFolder("token", "folder")).rejects.toThrow();
 });
+
+it.each([
+  [403, "accessNotConfigured", "Google Drive API is disabled"],
+  [403, "SERVICE_DISABLED", "Google Drive API is disabled"],
+  [401, "authError", "Google authorization was rejected"],
+  [403, "insufficientPermissions", "required file access"],
+  [404, "notFound", "same Google account"],
+  [403, "insufficientFilePermissions", "Google denied access"],
+  [429, "rateLimitExceeded", "temporarily unavailable"],
+  [503, "backendError", "temporarily unavailable"],
+  [400, "badRequest", "Google rejected the folder lookup"],
+])(
+  "explains folder lookup failure %i / %s without exposing private messages",
+  async (status, reason, expected) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              message: "private upstream details",
+              errors: [{ reason }],
+              details: [{ reason }],
+            },
+          },
+          { status },
+        ),
+      ),
+    );
+    const { writableFolder } = await import("../src/server/google");
+    const error = await writableFolder("token", "folder").catch(
+      (error: Error) => error,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(expected);
+    expect((error as Error).message).toContain(`Drive HTTP ${status}`);
+    expect((error as Error).message).not.toContain("private upstream details");
+  },
+);
+it("distinguishes an unreachable Drive service from permission errors", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockRejectedValue(new Error("private connection details")),
+  );
+  const { writableFolder } = await import("../src/server/google");
+  await expect(writableFolder("token", "folder")).rejects.toThrow(
+    "Could not reach Google Drive",
+  );
+});
