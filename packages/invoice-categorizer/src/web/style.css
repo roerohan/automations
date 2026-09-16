@@ -726,3 +726,38 @@ dd {
     padding: 8px 12px;
   }
 }
+
+.agent-setup {
+  margin-top: 24px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.agent-setup h3 {
+  margin: 0;
+}
+.agent-setup p {
+  max-width: 65ch;
+}
+.agent-setup label {
+  display: block;
+  margin: 20px 0 8px;
+}
+.agent-setup textarea {
+  width: 100%;
+  min-height: 280px;
+  padding: 16px;
+  resize: vertical;
+  background: var(--paper);
+  color: var(--body);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font:
+    12px/1.7 ui-monospace,
+    monospace;
+}
+.agent-setup textarea:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}

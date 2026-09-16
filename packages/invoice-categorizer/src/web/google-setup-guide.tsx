@@ -1,4 +1,21 @@
+import { useState } from "react";
+import { Button } from "@cloudflare/kumo";
+import { Copy } from "@phosphor-icons/react";
+import { googleSetupPrompt } from "./google-setup-prompt";
+
 export function GoogleSetupGuide({ configured }: { configured: boolean }) {
+  const [copyStatus, setCopyStatus] = useState("");
+  const [showPrompt, setShowPrompt] = useState(false);
+  const prompt = googleSetupPrompt(window.location.origin);
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopyStatus("Copied. Paste this into your coding agent.");
+    } catch {
+      setShowPrompt(true);
+      setCopyStatus("Clipboard unavailable. Select and copy the prompt below.");
+    }
+  }
   const callbackUrl = `${window.location.origin}/api/google/callback`;
   return (
     <details className="google-setup-guide" open={!configured}>
@@ -8,6 +25,36 @@ export function GoogleSetupGuide({ configured }: { configured: boolean }) {
         login verifies your identity; Google also needs permission to store
         invoice files and update your spreadsheet.
       </p>
+      <div className="agent-setup">
+        <h3>Let your agent handle setup</h3>
+        <p>
+          Copy a complete setup prompt with this dashboard's URL. Your agent can
+          use the browser and Wrangler; you handle sign-in and Google consent.
+          No credentials are included.
+        </p>
+        <div className="actions">
+          <Button className="primary-action" onClick={() => void copyPrompt()}>
+            <Copy size={16} aria-hidden="true" /> Copy setup prompt
+          </Button>
+          <Button
+            aria-expanded={showPrompt}
+            aria-controls="google-agent-prompt"
+            onClick={() => setShowPrompt(!showPrompt)}
+          >
+            {showPrompt ? "Hide prompt" : "Preview prompt"}
+          </Button>
+        </div>
+        {copyStatus && <p role="status">{copyStatus}</p>}
+        <div id="google-agent-prompt" hidden={!showPrompt}>
+          <label htmlFor="google-setup-prompt">Agent setup prompt</label>
+          <textarea
+            id="google-setup-prompt"
+            readOnly
+            value={prompt}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </div>
+      </div>
       <ol>
         <li>
           <strong>Select a Google Cloud project and enable the APIs.</strong>
