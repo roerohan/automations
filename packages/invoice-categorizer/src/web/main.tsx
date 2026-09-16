@@ -140,7 +140,7 @@ function App() {
             </h1>
             <p className="muted">
               {tab === "expenses"
-                ? "Email a PDF. Keep the original. Know where your money goes."
+                ? "Forward a receipt. Keep the original. Know where your money goes."
                 : "Manage your storage connection and invoice destination."}
             </p>
           </div>
@@ -208,8 +208,8 @@ function App() {
                 <div>
                   <h2>Connect Google to start collecting invoices</h2>
                   <p>
-                    Original PDFs go to your Drive. Your expense ledger stays
-                    here.
+                    Original PDFs and emails go to your Drive. Your expense
+                    ledger stays here.
                   </p>
                 </div>
                 <Button variant="primary" onClick={() => setTab("settings")}>
@@ -344,7 +344,9 @@ function App() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              View PDF ↗
+                              {item.source === "email"
+                                ? "View email ↗"
+                                : "View PDF ↗"}
                             </a>
                           ) : (
                             "Pending"
@@ -366,7 +368,7 @@ function App() {
                   <p>
                     {search
                       ? "Try another vendor or filename."
-                      : "Once Google is connected, forward a PDF invoice from an allowed email address. It will appear here after processing."}
+                      : "Once Google is connected, forward a receipt email or PDF from an allowed email address. It will appear here after processing."}
                   </p>
                 </div>
               )}
@@ -454,9 +456,10 @@ function App() {
                 <dd>{data.allowedSenders.join(", ")}</dd>
               </dl>
               <p className="muted">
-                These addresses are managed in Wrangler configuration. V1
-                accepts PDFs with selectable text, up to 8 MiB each. Photos and
-                scanned documents are planned.
+                These addresses are managed in Wrangler configuration. Accepts
+                receipt text in forwarded emails and PDFs with selectable text,
+                up to 8 MiB each. PDF attachments take priority over the email
+                body. Photos and scanned documents are planned.
               </p>
             </section>
             <section className="panel">

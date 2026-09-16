@@ -29,6 +29,7 @@ export type Extracted = z.infer<typeof extractedSchema>;
 export interface Expense {
   id: string;
   filename: string;
+  source?: "pdf" | "email";
   receivedAt: string;
   sender: string;
   driveId?: string;
@@ -100,7 +101,7 @@ export function authenticatedEmail(result: string): boolean {
 
 /** Stable, portable name; keep the original attachment name in the ledger. */
 export function invoiceFilename(
-  expense: Pick<Expense, "id" | "fields">,
+  expense: Pick<Expense, "id" | "fields" | "source">,
 ): string {
   const fields = expense.fields;
   const vendor =
@@ -121,6 +122,6 @@ export function invoiceFilename(
       expense.id.slice(0, 12),
     ]
       .filter((value) => value != null && value !== "")
-      .join("_") + ".pdf"
+      .join("_") + (expense.source === "email" ? ".eml" : ".pdf")
   );
 }

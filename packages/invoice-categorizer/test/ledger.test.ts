@@ -11,16 +11,18 @@ afterEach(async () => {
 async function setup(
   observe?: (request: { url: string; method: string }) => void,
   failRename = false,
+  emailVerdict = { isReceipt: true, multipleReceipts: false },
 ) {
   const bundle = await build({
     stdin: {
       contents: `
       import { InvoiceLedger } from './src/server/ledger.ts';
+      import worker from './src/server/index.ts';
       export class TestLedger extends InvoiceLedger {
         constructor(ctx, env) {
           super(ctx, {...env, AI: {
             toMarkdown: async () => ({ format: 'markdown', data: 'Example invoice with enough readable text for the extraction process.' }),
-            run: async () => ({ response: {vendor:'Example',invoiceNumber:'INV-1',date:'2026-09-13',currency:'INR',subtotal:'100',tax:'18',total:'118',category:'Software'} })
+            run: async () => ({ response: {vendor:'Example',invoiceNumber:'INV-1',date:'2026-09-13',currency:'INR',subtotal:'100',tax:'18',total:'118',category:'Software', ...${JSON.stringify(emailVerdict)}} })
           }});
         }
         async runAlarm() { await this.alarm(); }
@@ -28,7 +30,14 @@ async function setup(
       }
       export default { async fetch(request, env) {
         const { operation, args = [] } = await request.json();
-        const stub = env.LEDGER.get(env.LEDGER.idFromName('test'));
+        if (operation === 'ingest') {
+          let rejected;
+          const raw = new TextEncoder().encode(args[0]);
+          await worker.email({from:'owner@example.com',to:'invoices@example.com',rawSize:raw.length,
+            raw:new Response(raw).body,headers:new Headers({'Authentication-Results':'mx.cloudflare.net; dmarc=pass'}),setReject: reason => {rejected=reason;}}, env, {});
+          return Response.json({rejected});
+        }
+        const stub = env.LEDGER.get(env.LEDGER.idFromName('owner'));
         return Response.json(await stub[operation](...args) ?? null);
       }};`,
       resolveDir: process.cwd(),
@@ -46,6 +55,7 @@ async function setup(
     compatibilityDate: "2026-07-01",
     durableObjects: { LEDGER: { className: "TestLedger", useSQLite: true } },
     bindings: {
+      INVOICE_EMAIL: "invoices@example.com",
       GOOGLE_CLIENT_ID: "test",
       GOOGLE_CLIENT_SECRET: "test",
       AI_MODEL: "test",
@@ -61,7 +71,9 @@ async function setup(
       if (url.pathname.endsWith("/generateIds"))
         return Response.json({ ids: [`drive-${++generated}`] });
       if (url.searchParams.has("alt"))
-        return new Response("%PDF-test-original");
+        return new Response(
+          "From: owner@example.com\r\nSubject: Example Cab receipt\r\nContent-Type: text/plain\r\n\r\nExample Cab invoice INV-1, date 2026-09-13, subtotal INR 100, tax INR 18, total INR 118.",
+        );
       if (url.pathname.includes("/files/") && request.method === "GET")
         return Response.json({
           id: url.pathname.split("/").pop(),
@@ -190,3 +202,67 @@ it("keeps extracted data and the original name when Drive renaming fails", async
     "Drive filename update failed. Use Rename file to retry.",
   );
 });
+
+it("ingests a forwarded body, uploads the email, and extracts it from Drive", async () => {
+  const call = await setup();
+  await call("connectGoogle", "test-refresh");
+  const raw =
+    "From: owner@example.com\r\nSubject: Fwd: Example Cab receipt\r\nContent-Type: text/html\r\n\r\n<h1>Example Cab</h1><p>Receipt INV-1 on 2026-09-13, Total INR 118.00</p>";
+  expect(await call("ingest", raw)).toEqual({});
+  expect(await call("ingest", raw)).toEqual({});
+  await call("runAlarm");
+  const state = await call<{ expenses: Expense[] }>("dashboard");
+  expect(state.expenses).toHaveLength(1);
+  expect(state.expenses[0]).toMatchObject({
+    source: "email",
+    status: "ready",
+    fields: { total: "118" },
+  });
+  expect(state.expenses[0]!.driveFilename).toMatch(/\.eml$/);
+  expect(await call<string[]>("storedKeys")).not.toContain("body");
+});
+it("prefers PDF attachments over the body to avoid two expenses", async () => {
+  const call = await setup();
+  await call("connectGoogle", "test-refresh");
+  const raw = [
+    "From: owner@example.com",
+    "Subject: Receipt",
+    "Content-Type: multipart/mixed; boundary=boundary",
+    "",
+    "--boundary",
+    "Content-Type: text/plain",
+    "",
+    "Example Cab invoice INV-1, 2026-09-13, Total INR 118.00",
+    "--boundary",
+    "Content-Type: application/pdf",
+    "Content-Disposition: attachment; filename=invoice.pdf",
+    "Content-Transfer-Encoding: base64",
+    "",
+    btoa("%PDF-test"),
+    "--boundary--",
+  ].join("\r\n");
+  expect(await call("ingest", raw)).toEqual({});
+  const state = await call<{ expenses: Expense[] }>("dashboard");
+  expect(state.expenses).toHaveLength(1);
+  expect(state.expenses[0]!.source).toBe("pdf");
+});
+it.each([
+  { isReceipt: false, multipleReceipts: false },
+  { isReceipt: true, multipleReceipts: true },
+])(
+  "holds non-receipts or multiple purchases for review: %j",
+  async (verdict) => {
+    const call = await setup(undefined, false, verdict);
+    await call("connectGoogle", "test-refresh");
+    await call("prepareUpload", {
+      ...expense,
+      source: "email",
+      filename: "receipt.eml",
+    });
+    await call("finishUpload", expense.id);
+    await call("runAlarm");
+    const state = await call<{ expenses: Expense[] }>("dashboard");
+    expect(state.expenses[0]!.status).toBe("review");
+    expect(state.expenses[0]!.fields).toBeUndefined();
+  },
+);

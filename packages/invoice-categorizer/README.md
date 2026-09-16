@@ -1,8 +1,11 @@
 # Invoice categorizer
 
-Forward an invoice PDF to an email address on your Cloudflare domain. The Worker uploads the original to your Google Drive, extracts invoice fields with Workers AI, and records the expense in a SQLite-backed Durable Object. A React + Kumo dashboard shows expenses, totals per currency, review notes, and Google connection settings.
+Forward a receipt email or invoice PDF to an email address on your Cloudflare domain. The Worker uploads the original to your Google Drive, extracts invoice fields with Workers AI, and records the expense in a SQLite-backed Durable Object. A React + Kumo dashboard shows expenses, totals per currency, review notes, and Google connection settings.
 
 ## What v1 includes
+
+- Forwarded email receipts with readable plain text or HTML, including cab and flight receipts. Without a PDF attachment, the original email is stored as `.eml` in Drive and its body is extracted. PDF attachments take priority; we do not also create an expense from their covering email.
+- One receipt per body. Non-receipts and multiple-purchase threads are held for review. Image-only bodies and receipts available only through external links are not supported. No remote email images or links are fetched.
 
 - Exact receiving address and sender allowlist in Wrangler.
 - PDF attachments with selectable text, up to 8 MiB each, five per message, and a 12 MiB total message limit.
@@ -14,6 +17,8 @@ Forward an invoice PDF to an email address on your Cloudflare domain. The Worker
 - Separate spend totals by currency. Only ready records contribute to totals; no currency conversion.
 - Manual Google Sheets snapshot export with expense IDs and original-file links.
 - Cloudflare Access JWT verification for the dashboard, assets, API, and OAuth callback.
+
+Body receipts are deduplicated by normalized subject and text, ignoring delivery headers. Changed forwarding text or a PDF of the same receipt can produce a separate expense; cross-format semantic deduplication is not implemented. Email bodies are limited to 60,000 extracted characters and 1 MB of source HTML, within the 12 MiB total message limit. `.eml` originals can be downloaded from Drive and opened in an email client.
 
 Photos and scanned PDFs require OCR and are not supported yet. Extraction can be wrong even when arithmetic is consistent; review original invoices when needed. Review records currently support reprocessing, not manual field editing. The dashboard is an all-time ledger suitable for personal volumes, not a paginated accounting system.
 
@@ -86,7 +91,7 @@ flowchart LR
   Ledger -->|manual snapshot| Sheets[Google Sheets]
 ```
 
-The ingress Worker parses MIME, validates the sender and attachment, reserves the expense ID, uploads to Drive, and marks the record queued. The Durable Object stores records, configuration, retry state, OAuth state, and credentials only.
+The ingress Worker parses MIME, validates the sender and attachments or body, reserves the expense ID, uploads to Drive, and marks the record queued. The Durable Object stores records, configuration, retry state, OAuth state, and credentials only.
 
 If the upload succeeds but its acknowledgment is lost, a later alarm reads the preallocated Drive ID and continues. If an upload fails before Drive receives it, resend the original email; no persistent local copy exists. Retrying extraction reads the original from Drive. Files deleted from Drive must be restored or resent. Three failed attempts leave an actionable record rather than retrying forever.
 
@@ -94,7 +99,7 @@ The sender's envelope address and visible From address must both be in `ALLOWED_
 
 Sheets sync writes a deterministic snapshot using RAW values, so repeated clicks do not append duplicate expenses or interpret document strings as formulas. The first tab is app-owned. Do not put manual edits or formulas there. A stable app property helps recover spreadsheet creation after an uncertain network response; Google Workspace files do not support preallocated IDs, so an ambiguous initial creation can still require reconciling an extra empty spreadsheet.
 
-The queue allows 25 active records. An upload is not accepted as durable until Drive stores it. PDFs are not saved in logs. Automatic processing uses a fixed taxonomy in `src/server/domain.ts`; edit it and redeploy to change categories.
+The queue allows 25 active records. An upload is not accepted as durable until Drive stores it. PDFs and email bodies are not saved in logs or Durable Object storage. Automatic processing uses a fixed taxonomy in `src/server/domain.ts`; edit it and redeploy to change categories.
 
 ## Development and verification
 

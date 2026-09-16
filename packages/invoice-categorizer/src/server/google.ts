@@ -65,7 +65,7 @@ export async function createDriveFile(
   if (bytes) {
     const boundary = `invoice_${crypto.randomUUID()}`;
     const body = new Blob([
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
       bytes,
       `\r\n--${boundary}--`,
     ]);

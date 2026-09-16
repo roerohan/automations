@@ -1,4 +1,5 @@
 import PostalMime from "postal-mime";
+import { receiptBody, bodyExpenseId } from "./email-body";
 import { authorize, sameOrigin } from "./auth";
 import {
   allowedEnvelope,
@@ -211,9 +212,8 @@ export default {
       message.setReject("Message exceeds the 12 MiB limit.");
       return;
     }
-    const parsed = await PostalMime.parse(
-      await new Response(message.raw).arrayBuffer(),
-    );
+    const raw = await new Response(message.raw).arrayBuffer();
+    const parsed = await PostalMime.parse(raw);
     if (
       !parsed.from?.address ||
       !env.ALLOWED_SENDERS.some(
@@ -229,8 +229,45 @@ export default {
         attachment.mimeType === "application/pdf" ||
         attachment.filename?.toLowerCase().endsWith(".pdf"),
     );
-    if (attachments.length === 0 || attachments.length > 5) {
-      message.setReject("Send between one and five PDF attachments.");
+    if (attachments.length > 5) {
+      message.setReject("Send at most five PDF attachments.");
+      return;
+    }
+    if (attachments.length === 0) {
+      let text: string;
+      try {
+        text = receiptBody(parsed);
+      } catch (error) {
+        message.setReject(
+          error instanceof Error
+            ? error.message
+            : "Cannot read this email body.",
+        );
+        return;
+      }
+      const id = await bodyExpenseId(text);
+      const filename = `${(parsed.subject ?? "Receipt").replace(/[\p{Cc}/\\]/gu, "_").slice(0, 150)}.eml`;
+      const store = ledger(env);
+      const reservation = await store.prepareUpload({
+        id,
+        filename,
+        source: "email",
+        sender: message.from,
+        receivedAt: new Date().toISOString(),
+        status: "uploading",
+        issues: [],
+        attempts: 0,
+      });
+      if (!reservation) return;
+      await createDriveFile(
+        reservation.token,
+        reservation.driveId,
+        filename,
+        "message/rfc822",
+        reservation.folderId,
+        raw,
+      );
+      await store.finishUpload(id);
       return;
     }
     const valid = attachments.map((attachment) => ({
@@ -261,6 +298,7 @@ export default {
       const reservation = await store.prepareUpload({
         id,
         filename,
+        source: "pdf",
         sender: message.from,
         receivedAt: new Date().toISOString(),
         status: "uploading",
