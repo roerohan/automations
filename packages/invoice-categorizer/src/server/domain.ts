@@ -32,6 +32,7 @@ export interface Expense {
   receivedAt: string;
   sender: string;
   driveId?: string;
+  driveFilename?: string;
   status: "uploading" | "queued" | "processing" | "ready" | "review" | "failed";
   fields?: Extracted;
   issues: string[];
@@ -95,4 +96,31 @@ export function isPdf(bytes: Uint8Array): boolean {
 export function authenticatedEmail(result: string): boolean {
   if (!/^mx\.cloudflare\.net\s*;/i.test(result.trim())) return false;
   return /;\s*dmarc=(\w+)/i.exec(result)?.[1]?.toLowerCase() === "pass";
+}
+
+/** Stable, portable name; keep the original attachment name in the ledger. */
+export function invoiceFilename(
+  expense: Pick<Expense, "id" | "fields">,
+): string {
+  const fields = expense.fields;
+  const vendor =
+    (fields?.vendor ?? "Invoice")
+      .normalize("NFKC")
+      .replace(/[^\p{L}\p{N} ._-]/gu, " ")
+      .replace(/[\s._-]+/g, " ")
+      .trim()
+      .slice(0, 70)
+      .trim()
+      .replace(/ /g, "-") || "Invoice";
+  return (
+    [
+      vendor,
+      fields?.date,
+      fields?.currency,
+      fields?.total,
+      expense.id.slice(0, 12),
+    ]
+      .filter((value) => value != null && value !== "")
+      .join("_") + ".pdf"
+  );
 }

@@ -1,9 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import type { Env } from "./env";
-import { extractedSchema, reviewIssues, type Expense } from "./domain";
+import {
+  extractedSchema,
+  reviewIssues,
+  invoiceFilename,
+  type Expense,
+} from "./domain";
 import {
   createDriveFile,
+  renameDriveFile,
   generateDriveId,
   googleFetch,
   tokenRequest,
@@ -251,6 +257,27 @@ export class InvoiceLedger extends DurableObject<Env> {
     this.put({ ...expense, status: "queued" });
     await this.ctx.storage.setAlarm(Date.now() + 1000);
   }
+  async renameExpense(id: string) {
+    const expense = this.get(id);
+    if (
+      !expense?.driveId ||
+      !expense.fields ||
+      !["ready", "review"].includes(expense.status)
+    )
+      throw new Error("Only extracted invoices can be renamed.");
+    const name = invoiceFilename(expense);
+    await renameDriveFile(await this.accessToken(), expense.driveId, name);
+    // Read again after the network call so a concurrent retry cannot lose its state.
+    const current = this.get(id)!;
+    this.put({
+      ...current,
+      driveFilename: name,
+      issues: current.issues.filter(
+        (issue) =>
+          issue !== "Drive filename update failed. Use Rename file to retry.",
+      ),
+    });
+  }
   async retry(id: string) {
     const expense = this.get(id);
     if (!expense || !["failed", "review"].includes(expense.status))
@@ -319,6 +346,16 @@ export class InvoiceLedger extends DurableObject<Env> {
         );
         expense.issues = reviewIssues(expense.fields);
         expense.status = expense.issues.length ? "review" : "ready";
+        const name = invoiceFilename(expense);
+        try {
+          await renameDriveFile(token, expense.driveId, name);
+          expense.driveFilename = name;
+        } catch {
+          // A cosmetic rename failure must not discard a successfully extracted expense.
+          expense.issues.push(
+            "Drive filename update failed. Use Rename file to retry.",
+          );
+        }
       }
     } catch (error) {
       expense.status = expense.attempts < 3 ? "queued" : "failed";

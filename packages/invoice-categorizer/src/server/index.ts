@@ -150,11 +150,15 @@ export default {
       }
       if (url.pathname === "/api/sync" && request.method === "POST")
         return json(await store.syncSheets());
-      if (url.pathname === "/api/retry" && request.method === "POST") {
+      if (
+        ["/api/retry", "/api/rename"].includes(url.pathname) &&
+        request.method === "POST"
+      ) {
         const input = (await request.json()) as { id?: unknown };
         if (typeof input.id !== "string" || !/^[a-f0-9]{64}$/.test(input.id))
           return json({ error: "Invalid expense ID." }, 400);
-        await store.retry(input.id);
+        if (url.pathname === "/api/rename") await store.renameExpense(input.id);
+        else await store.retry(input.id);
         return json({ ok: true });
       }
       if (url.pathname.startsWith("/api/"))

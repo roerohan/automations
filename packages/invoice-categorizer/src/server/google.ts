@@ -189,3 +189,19 @@ export async function writableFolder(
     );
   return { id: folder.id, name: folder.name };
 }
+
+export async function renameDriveFile(
+  token: string,
+  id: string,
+  name: string,
+): Promise<void> {
+  await googleFetch(
+    token,
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  );
+}

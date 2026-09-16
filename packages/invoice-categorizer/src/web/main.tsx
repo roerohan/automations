@@ -91,7 +91,13 @@ function App() {
   }
   const filtered =
     data?.expenses.filter((item) =>
-      [item.id, item.filename, item.fields?.vendor, item.fields?.category]
+      [
+        item.id,
+        item.filename,
+        item.driveFilename,
+        item.fields?.vendor,
+        item.fields?.category,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(search.toLowerCase()),
@@ -271,6 +277,9 @@ function App() {
                           <small title={item.id}>
                             ID {item.id.slice(0, 12)}
                           </small>
+                          {item.driveFilename && (
+                            <small>{item.driveFilename}</small>
+                          )}
                           {item.issues.map((issue) => (
                             <small className="issue" key={issue}>
                               {issue}
@@ -291,6 +300,27 @@ function App() {
                         </td>
                         <td>
                           <Badge>{item.status}</Badge>
+                          {item.fields &&
+                            item.driveId &&
+                            !item.driveFilename &&
+                            ["ready", "review"].includes(item.status) && (
+                              <Button
+                                size="sm"
+                                disabled={busy || !data.connected}
+                                onClick={() =>
+                                  void action(
+                                    () =>
+                                      api("/api/rename", "POST", {
+                                        id: item.id,
+                                      }),
+                                    "Drive filename updated.",
+                                  )
+                                }
+                              >
+                                Rename file
+                              </Button>
+                            )}
+
                           {["failed", "review"].includes(item.status) && (
                             <Button
                               size="sm"

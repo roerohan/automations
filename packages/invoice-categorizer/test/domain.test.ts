@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  invoiceFilename,
   allowedEnvelope,
   authenticatedEmail,
   digest,
@@ -112,4 +113,30 @@ it("rejects forged or failed ingress authentication results", () => {
     ),
   ).toBe(false);
   expect(authenticatedEmail("")).toBe(false);
+});
+
+it("names PDFs using vendor, date, currency, amount and stable expense ID", () => {
+  expect(
+    invoiceFilename({
+      id: "abcdef1234567890",
+      fields: { ...invoice, vendor: "Uber", total: "1565.79" },
+    }),
+  ).toBe("Uber_2026-09-13_INR_1565.79_abcdef123456.pdf");
+});
+it("sanitizes vendor filenames and handles missing values without inventing amounts", () => {
+  expect(
+    invoiceFilename({
+      id: "a".repeat(64),
+      fields: {
+        ...invoice,
+        vendor: "../Acme/\\Cloud\n",
+        date: null,
+        currency: null,
+        total: null,
+      },
+    }),
+  ).toBe("Acme-Cloud_aaaaaaaaaaaa.pdf");
+  expect(invoiceFilename({ id: "b".repeat(64) })).toBe(
+    "Invoice_bbbbbbbbbbbb.pdf",
+  );
 });

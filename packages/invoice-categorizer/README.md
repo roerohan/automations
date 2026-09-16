@@ -10,6 +10,7 @@ Forward an invoice PDF to an email address on your Cloudflare domain. The Worker
 - SHA-256 expense IDs for exact-content duplicate detection and preallocated Drive IDs for upload retries.
 - Durable Object alarm processing with up to three automatic attempts, plus dashboard retries.
 - Vendor, invoice number, date, currency, subtotal, tax, total, and a fixed expense category.
+- Automatic Drive filenames such as `Uber_2026-09-14_INR_1565.79_beffa89d702c.pdf`. The original attachment name remains in the ledger. Existing extracted invoices can use **Rename file**; rename failures leave extracted data intact.
 - Separate spend totals by currency. Only ready records contribute to totals; no currency conversion.
 - Manual Google Sheets snapshot export with expense IDs and original-file links.
 - Cloudflare Access JWT verification for the dashboard, assets, API, and OAuth callback.

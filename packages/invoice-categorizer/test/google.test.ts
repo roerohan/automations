@@ -132,3 +132,14 @@ it("distinguishes an unreachable Drive service from permission errors", async ()
     "Could not reach Google Drive",
   );
 });
+
+it("renames only the existing file, including in a shared drive", async () => {
+  const mock = vi.fn().mockResolvedValue(Response.json({}));
+  vi.stubGlobal("fetch", mock);
+  const { renameDriveFile } = await import("../src/server/google");
+  await renameDriveFile("token", "existing-id", "Uber_receipt.pdf");
+  const [url, options] = mock.mock.calls[0]!;
+  expect(url).toContain("/existing-id?supportsAllDrives=true");
+  expect(options.method).toBe("PATCH");
+  expect(JSON.parse(options.body)).toEqual({ name: "Uber_receipt.pdf" });
+});

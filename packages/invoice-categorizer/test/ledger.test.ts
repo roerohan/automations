@@ -10,6 +10,7 @@ afterEach(async () => {
 });
 async function setup(
   observe?: (request: { url: string; method: string }) => void,
+  failRename = false,
 ) {
   const bundle = await build({
     stdin: {
@@ -52,6 +53,8 @@ async function setup(
     },
     outboundService: async (request: { url: string; method: string }) => {
       observe?.(request);
+      if (failRename && request.method === "PATCH")
+        return new Response(null, { status: 403 });
       const url = new URL(request.url);
       if (url.hostname === "oauth2.googleapis.com")
         return Response.json({ access_token: "test-access" });
@@ -118,6 +121,7 @@ describe("Durable Object ledger in workerd", () => {
     expect(state.expenses[0]).toMatchObject({
       status: "ready",
       attempts: 1,
+      driveFilename: "Example_2026-09-13_INR_118_aaaaaaaaaaaa.pdf",
       fields: { total: "118", currency: "INR" },
     });
   });
@@ -167,4 +171,22 @@ it("reuses a created folder ID when the same request is retried", async () => {
   expect(
     await call("createFolder", { ...input, name: "Different" }),
   ).toHaveProperty("error");
+});
+
+it("keeps extracted data and the original name when Drive renaming fails", async () => {
+  const call = await setup(undefined, true);
+  await call("connectGoogle", "test-refresh");
+  await call("prepareUpload", expense);
+  await call("finishUpload", expense.id);
+  await call("runAlarm");
+  const state = await call<{ expenses: Expense[] }>("dashboard");
+  expect(state.expenses[0]).toMatchObject({
+    status: "ready",
+    filename: "invoice.pdf",
+    fields: { total: "118" },
+  });
+  expect(state.expenses[0]!.driveFilename).toBeUndefined();
+  expect(state.expenses[0]!.issues).toContain(
+    "Drive filename update failed. Use Rename file to retry.",
+  );
 });
