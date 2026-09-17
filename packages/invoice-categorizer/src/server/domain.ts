@@ -35,6 +35,13 @@ export interface Expense {
   sender: string;
   driveId?: string;
   driveFilename?: string;
+  receiptUpload?: {
+    driveId: string;
+    filename: string;
+    startedAt: number;
+    hash?: string;
+  };
+  emailProcessingAt?: number;
   status: "uploading" | "queued" | "processing" | "ready" | "review" | "failed";
   fields?: Extracted;
   issues: string[];

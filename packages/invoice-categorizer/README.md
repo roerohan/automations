@@ -1,11 +1,11 @@
 # Invoice categorizer
 
-Forward a receipt email or invoice PDF to an email address on your Cloudflare domain. The Worker uploads the original to your Google Drive, extracts invoice fields with Workers AI, and records the expense in a SQLite-backed Durable Object. A React + Kumo dashboard shows expenses, totals per currency, review notes, and Google connection settings.
+Forward a receipt email or invoice PDF to an email address on your Cloudflare domain. The Worker saves invoice PDFs to your Google Drive, extracts invoice fields with Workers AI, and records the expense in a SQLite-backed Durable Object. A React + Kumo dashboard shows expenses, totals per currency, review notes, and Google connection settings.
 
 ## What v1 includes
 
-- Forwarded email receipts with readable plain text or HTML, including cab and flight receipts. Without a PDF attachment, the original email is stored as `.eml` in Drive and its body is extracted. PDF attachments take priority; we do not also create an expense from their covering email.
-- One receipt per body. Non-receipts and multiple-purchase threads are held for review. Image-only bodies and receipts available only through external links are not supported. No remote email images or links are fetched. Receipt and download links are saved as metadata and shown next to the original in the dashboard. These links open on the provider website and may require login or expire; they do not download a separate PDF into Drive. Only HTTPS links without embedded credentials are accepted, with at most five per email.
+- Forwarded email receipts with readable plain text or HTML, including cab and flight receipts. Without a PDF attachment, the email body is extracted in memory and never saved to Drive or Durable Object storage. PDF attachments take priority; we do not also create an expense from their covering email.
+- One receipt per body. Non-receipts and multiple-purchase threads are held for review. Image-only bodies and receipts available only through external links are not supported. No remote email images are fetched. Receipt and download links are saved as metadata and shown next to the original in the dashboard. Known Uber HTTPS hosts are checked for a public PDF using a bounded, credential-free fetch with validated redirects. Login pages, unsupported hosts, expired links, or failed downloads leave a link-only expense. Other providers are link-only until explicitly supported. Use **⋯ → Attach receipt PDF** after downloading the receipt in your signed-in browser. This saves the PDF to the existing expense without duplicating it or changing edited metadata. Only HTTPS links without embedded credentials are accepted, with at most five per email.
 
 - Exact receiving address and sender allowlist in Wrangler.
 - PDF attachments with selectable text, up to 8 MiB each, five per message, and a 12 MiB total message limit.
@@ -18,7 +18,7 @@ Forward a receipt email or invoice PDF to an email address on your Cloudflare do
 - Manual Google Sheets snapshot export with expense IDs and original-file links.
 - Cloudflare Access JWT verification for the dashboard, assets, API, and OAuth callback.
 
-Body receipts are deduplicated by normalized subject and text, ignoring delivery headers. Changed forwarding text or a PDF of the same receipt can produce a separate expense; cross-format semantic deduplication is not implemented. Email bodies are limited to 60,000 extracted characters and 1 MB of source HTML, within the 12 MiB total message limit. `.eml` originals can be downloaded from Drive and opened in an email client.
+Body receipts are deduplicated by normalized subject and text, ignoring delivery headers. Changed forwarding text or a PDF of the same receipt can produce a separate expense; cross-format semantic deduplication is not implemented. Email bodies are limited to 60,000 extracted characters and 1 MB of source HTML, within the 12 MiB total message limit. Legacy `.eml` files can be removed with **⋯ → Remove saved email from Drive** (moves the app-created file to trash, retaining metadata and links). Attaching a PDF also removes that legacy email. Body extraction failures require forwarding the email again, because no body is retained; interrupted processing can be retried by resending after two minutes.
 
 Photos and scanned PDFs require OCR and are not supported yet. Extraction can be wrong even when arithmetic is consistent; review original invoices when needed. Review records currently support reprocessing, not manual field editing. The dashboard is an all-time ledger suitable for personal volumes, not a paginated accounting system.
 
@@ -93,7 +93,7 @@ flowchart LR
 
 The ingress Worker parses MIME, validates the sender and attachments or body, reserves the expense ID, uploads to Drive, and marks the record queued. The Durable Object stores records, configuration, retry state, OAuth state, and credentials only.
 
-If the upload succeeds but its acknowledgment is lost, a later alarm reads the preallocated Drive ID and continues. If an upload fails before Drive receives it, resend the original email; no persistent local copy exists. Retrying extraction reads the original from Drive. Files deleted from Drive must be restored or resent. Three failed attempts leave an actionable record rather than retrying forever.
+If the upload succeeds but its acknowledgment is lost, a later alarm reads the preallocated Drive ID and continues. If an upload fails before Drive receives it, resend the original email; no persistent local copy exists. Retrying PDF extraction reads the original from Drive. Body-only receipts must be forwarded again. Files deleted from Drive must be restored or resent. Three failed attempts leave an actionable record rather than retrying forever.
 
 The sender's envelope address and visible From address must both be in `ALLOWED_SENDERS`. Cloudflare's routing service performs email authentication; the handler also requires a DMARC pass in the ingress authentication results. Forward invoices as a new message from your allowed mailbox, not through a forwarding chain that rewrites the envelope. Validate your provider's delivered authentication headers during setup.
 

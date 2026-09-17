@@ -10,12 +10,14 @@ type Props = {
   onNotice: (message: string) => void;
 };
 export function ExpenseActions({ expense, api, refresh, onNotice }: Props) {
-  const [dialog, setDialog] = useState<"edit" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<
+    "edit" | "delete" | "attach" | "remove-email" | null
+  >(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const mutable = ["ready", "review", "failed"].includes(expense.status);
   const name = expense.fields?.vendor ?? expense.filename;
-  function open(kind: "edit" | "delete") {
+  function open(kind: "edit" | "delete" | "attach" | "remove-email") {
     setError("");
     setDialog(kind);
   }
@@ -49,6 +51,58 @@ export function ExpenseActions({ expense, api, refresh, onNotice }: Props) {
       setBusy(false);
     }
   }
+  async function tryDownload() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/expenses/${expense.id}/fetch-receipt`, "POST");
+      setDialog(null);
+      onNotice("Receipt PDF saved to Drive.");
+      await refresh();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Open the link and attach the downloaded PDF.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function receiptAction(file?: File) {
+    setBusy(true);
+    setError("");
+    try {
+      if (file) {
+        if (!file.size || file.size > 8 * 1024 * 1024)
+          throw new Error("Choose a PDF up to 8 MiB.");
+        const response = await fetch(`/api/expenses/${expense.id}/receipt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/pdf" },
+          body: file,
+        });
+        if (!response.ok)
+          throw new Error(
+            "Could not attach the PDF. Check your Google connection and try again.",
+          );
+      } else await api(`/api/expenses/${expense.id}/saved-email`, "POST");
+      setDialog(null);
+      onNotice(
+        file
+          ? "Receipt PDF saved to Drive. Expense details are unchanged."
+          : "Saved email moved to Drive trash. Expense details and receipt links are kept.",
+      );
+      try {
+        await refresh();
+      } catch {
+        onNotice("Saved. Reload the page to refresh the table.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Receipt update failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <DropdownMenu>
@@ -78,6 +132,24 @@ export function ExpenseActions({ expense, api, refresh, onNotice }: Props) {
               {expense.receiptLinks!.length > 1 ? ` ${index + 1}` : ""}
             </DropdownMenu.LinkItem>
           ))}
+          {expense.source === "email" && (
+            <>
+              <DropdownMenu.Item
+                disabled={!mutable}
+                onClick={() => open("attach")}
+              >
+                Attach receipt PDF
+              </DropdownMenu.Item>
+              {expense.driveId && (
+                <DropdownMenu.Item
+                  disabled={!mutable}
+                  onClick={() => open("remove-email")}
+                >
+                  Remove saved email from Drive
+                </DropdownMenu.Item>
+              )}
+            </>
+          )}
           <DropdownMenu.Item disabled={!mutable} onClick={() => open("edit")}>
             Edit details
           </DropdownMenu.Item>
@@ -98,19 +170,95 @@ export function ExpenseActions({ expense, api, refresh, onNotice }: Props) {
       >
         <Dialog size="lg" className="expense-dialog">
           <Dialog.Title>
-            {dialog === "delete" ? "Delete expense?" : "Edit expense details"}
+            {dialog === "attach"
+              ? "Attach receipt PDF"
+              : dialog === "remove-email"
+                ? "Remove saved email?"
+                : dialog === "delete"
+                  ? "Delete expense?"
+                  : "Edit expense details"}
           </Dialog.Title>
           <Dialog.Description>
-            {dialog === "delete"
-              ? `Remove ${name} from your expenses and totals. This cannot be undone. The original file stays in Drive; sync again to update Sheets.`
-              : "Correct the extracted details. Your original document and Drive filename stay unchanged."}
+            {dialog === "attach"
+              ? "Open the download link, sign in on the provider's website if needed, then choose the downloaded PDF. It will be saved to your invoice folder and linked to this expense; existing expense details stay unchanged."
+              : dialog === "remove-email"
+                ? "Move this app's saved email to Drive trash. The expense and download links will remain. You can restore the email from Drive trash."
+                : dialog === "delete"
+                  ? `Remove ${name} from your expenses and totals. This cannot be undone. The original file stays in Drive; sync again to update Sheets.`
+                  : "Correct the extracted details. Your original document and Drive filename stay unchanged."}
           </Dialog.Description>
           {error && (
             <p className="message error" role="alert">
               {error}
             </p>
           )}
-          {dialog === "delete" ? (
+          {dialog === "attach" ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const file = new FormData(event.currentTarget).get("receipt");
+                if (file instanceof File) void receiptAction(file);
+              }}
+            >
+              {expense.receiptLinks?.map((link) => (
+                <p key={link.url}>
+                  <a href={link.url} target="_blank" rel="noreferrer">
+                    Download receipt ↗
+                  </a>
+                </p>
+              ))}
+              {!!expense.receiptLinks?.length && (
+                <p>
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void tryDownload()}
+                  >
+                    Try automatic download
+                  </Button>
+                </p>
+              )}
+              <label>
+                Receipt PDF (up to 8 MiB)
+                <Input
+                  name="receipt"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  required
+                  disabled={busy}
+                />
+              </label>
+              <div className="actions">
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDialog(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="primary-action"
+                  disabled={busy}
+                >
+                  {busy ? "Uploading…" : "Save PDF to Drive"}
+                </Button>
+              </div>
+            </form>
+          ) : dialog === "remove-email" ? (
+            <div className="actions">
+              <Button disabled={busy} onClick={() => setDialog(null)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={busy}
+                className="primary-action"
+                onClick={() => void receiptAction()}
+              >
+                {busy ? "Removing…" : "Move email to trash"}
+              </Button>
+            </div>
+          ) : dialog === "delete" ? (
             <div className="actions">
               <Button disabled={busy} onClick={() => setDialog(null)}>
                 Cancel

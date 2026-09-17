@@ -203,8 +203,9 @@ it("keeps extracted data and the original name when Drive renaming fails", async
   );
 });
 
-it("ingests a forwarded body, uploads the email, and extracts it from Drive", async () => {
-  const call = await setup();
+it("extracts forwarded email in memory without saving the email to Drive", async () => {
+  const requests: { url: string; method: string }[] = [];
+  const call = await setup((request) => requests.push(request));
   await call("connectGoogle", "test-refresh");
   const raw =
     "From: owner@example.com\r\nSubject: Fwd: Example Cab receipt\r\nContent-Type: text/html\r\n\r\n<h1>Example Cab</h1><p>Receipt INV-1 on 2026-09-13, Total INR 118.00</p><a href='https://cab.example/receipt?token=test'>Download receipt</a>";
@@ -225,7 +226,9 @@ it("ingests a forwarded body, uploads the email, and extracts it from Drive", as
     status: "ready",
     fields: { total: "118" },
   });
-  expect(state.expenses[0]!.driveFilename).toMatch(/\.eml$/);
+  expect(state.expenses[0]!.driveFilename).toBeUndefined();
+  expect(state.expenses[0]!.driveId).toBeUndefined();
+  expect(requests).toEqual([]);
   expect(await call<string[]>("storedKeys")).not.toContain("body");
 });
 it("prefers PDF attachments over the body to avoid two expenses", async () => {
@@ -326,4 +329,37 @@ it("rejects editing and deletion while processing is pending", async () => {
   expect(
     (await call<{ expenses: Expense[] }>("dashboard")).expenses,
   ).toHaveLength(1);
+});
+
+it("replaces a legacy email with a reserved PDF while retaining edited metadata", async () => {
+  const requests: { url: string; method: string }[] = [];
+  const call = await setup((request) => requests.push(request));
+  await call("connectGoogle", "test-refresh");
+  await call("prepareUpload", {
+    ...expense,
+    source: "email",
+    filename: "receipt.eml",
+  });
+  await call("finishUpload", expense.id);
+  await call("runAlarm");
+  requests.length = 0;
+  await call("removeSavedEmail", expense.id);
+  const cleaned = (await call<{ expenses: Expense[] }>("dashboard"))
+    .expenses[0]!;
+  expect(cleaned.driveId).toBeUndefined();
+  expect(cleaned.fields?.total).toBe("118");
+  expect(requests.some((r) => r.method === "PATCH")).toBe(true);
+  const first = await call<{ driveId: string; filename: string }>(
+    "prepareReceipt",
+    expense.id,
+  );
+  const retry = await call<{ driveId: string }>("prepareReceipt", expense.id);
+  expect(first.driveId).toBe(retry.driveId);
+  expect(first.filename).toMatch(/\.pdf$/);
+  await expect(call("deleteExpense", expense.id)).rejects.toThrow();
+  await call("finishReceipt", expense.id);
+  const saved = (await call<{ expenses: Expense[] }>("dashboard")).expenses[0]!;
+  expect(saved.source).toBe("pdf");
+  expect(saved.driveId).toBe(first.driveId);
+  expect(saved.fields).toEqual(cleaned.fields);
 });

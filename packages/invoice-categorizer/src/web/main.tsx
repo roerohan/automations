@@ -280,8 +280,8 @@ function App() {
                 <div>
                   <h2>Connect Google to start collecting invoices</h2>
                   <p>
-                    Original PDFs and emails go to your Drive. Your expense
-                    ledger stays here.
+                    Original PDFs go to your Drive. Your expense ledger stays
+                    here.
                   </p>
                 </div>
                 <Button
@@ -393,7 +393,7 @@ function App() {
                           <small title={item.id}>
                             ID {item.id.slice(0, 12)}
                           </small>
-                          {item.driveFilename && (
+                          {item.driveFilename && item.source !== "email" && (
                             <small>{item.driveFilename}</small>
                           )}
                           {item.issues.map((issue) => (
@@ -441,21 +441,24 @@ function App() {
                               </Button>
                             )}
 
-                          {["failed", "review"].includes(item.status) && (
-                            <Button
-                              size="sm"
-                              disabled={busy || !data.connected}
-                              onClick={() =>
-                                void action(
-                                  () =>
-                                    api("/api/retry", "POST", { id: item.id }),
-                                  "Invoice queued for another attempt.",
-                                )
-                              }
-                            >
-                              Retry
-                            </Button>
-                          )}
+                          {item.driveId &&
+                            ["failed", "review"].includes(item.status) && (
+                              <Button
+                                size="sm"
+                                disabled={busy || !data.connected}
+                                onClick={() =>
+                                  void action(
+                                    () =>
+                                      api("/api/retry", "POST", {
+                                        id: item.id,
+                                      }),
+                                    "Invoice queued for another attempt.",
+                                  )
+                                }
+                              >
+                                Retry
+                              </Button>
+                            )}
                         </td>
                         <td>
                           {item.receiptLinks?.map((link, index) => (
@@ -488,6 +491,8 @@ function App() {
                                 ? "View email ↗"
                                 : "View PDF ↗"}
                             </a>
+                          ) : item.source === "email" ? (
+                            "PDF not saved"
                           ) : (
                             "Pending"
                           )}

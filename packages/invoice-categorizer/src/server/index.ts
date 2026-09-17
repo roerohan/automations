@@ -1,3 +1,4 @@
+import { boundedPdf, downloadReceipt } from "./receipt-download";
 import PostalMime from "postal-mime";
 import { receiptLinks } from "./receipt-links";
 import { receiptBody, bodyExpenseId } from "./email-body";
@@ -164,6 +165,43 @@ export default {
         else await store.retry(input.id);
         return json({ ok: true });
       }
+      const receiptAction =
+        /^\/api\/expenses\/([a-f0-9]{64})\/(receipt|saved-email|fetch-receipt)$/.exec(
+          url.pathname,
+        );
+      if (receiptAction && request.method === "POST") {
+        const id = receiptAction[1]!;
+        if (receiptAction[2] === "saved-email")
+          return json(await store.removeSavedEmail(id));
+        let bytes: ArrayBuffer | undefined;
+        if (receiptAction[2] === "fetch-receipt") {
+          const expense = (await store.dashboard()).expenses.find(
+            (item) => item.id === id,
+          );
+          bytes = await downloadReceipt(expense?.receiptLinks ?? []);
+          if (!bytes)
+            return json(
+              {
+                error:
+                  "A public PDF was not available. Open the receipt link, sign in if needed, and use Attach receipt PDF.",
+              },
+              400,
+            );
+        } else
+          bytes = await boundedPdf(
+            new Response(request.body, { headers: request.headers }),
+          );
+        const upload = await store.prepareReceipt(id, await digest(bytes));
+        await createDriveFile(
+          upload.token,
+          upload.driveId,
+          upload.filename,
+          "application/pdf",
+          upload.folderId,
+          bytes,
+        );
+        return json(await store.finishReceipt(id));
+      }
       if (
         url.pathname.startsWith("/api/expenses/") &&
         ["PATCH", "DELETE"].includes(request.method)
@@ -269,29 +307,41 @@ export default {
         return;
       }
       const id = await bodyExpenseId(text);
-      const filename = `${(parsed.subject ?? "Receipt").replace(/[\p{Cc}/\\]/gu, "_").slice(0, 150)}.eml`;
+      const filename = (parsed.subject ?? "Forwarded receipt")
+        .replace(/[\p{Cc}/\\]/gu, "_")
+        .slice(0, 150);
       const store = ledger(env);
-      const reservation = await store.prepareUpload({
-        id,
-        filename,
-        source: "email",
-        receiptLinks: links,
-        sender: message.from,
-        receivedAt: new Date().toISOString(),
-        status: "uploading",
-        issues: [],
-        attempts: 0,
-      });
-      if (!reservation) return;
-      await createDriveFile(
-        reservation.token,
-        reservation.driveId,
-        filename,
-        "message/rfc822",
-        reservation.folderId,
-        raw,
+      await store.processEmail(
+        {
+          id,
+          filename,
+          source: "email",
+          receiptLinks: links,
+          sender: message.from,
+          receivedAt: new Date().toISOString(),
+          status: "processing",
+          issues: [],
+          attempts: 0,
+        },
+        text,
       );
-      await store.finishUpload(id);
+      const pdf = await downloadReceipt(links);
+      if (pdf) {
+        try {
+          const upload = await store.prepareReceipt(id, await digest(pdf));
+          await createDriveFile(
+            upload.token,
+            upload.driveId,
+            upload.filename,
+            "application/pdf",
+            upload.folderId,
+            pdf,
+          );
+          await store.finishReceipt(id);
+        } catch {
+          /* Keep the extracted expense and download link for manual attachment. */
+        }
+      }
       return;
     }
     const valid = attachments.map((attachment) => ({
