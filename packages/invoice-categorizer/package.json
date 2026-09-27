@@ -12,7 +12,7 @@
     "deploy:local": "CLOUDFLARE_CONFIG_PATH=wrangler.local.jsonc pnpm build && wrangler deploy --config dist/invoice_categorizer/wrangler.json"
   },
   "dependencies": {
-    "@cloudflare/kumo": "^2.13.2",
+    "@cloudflare/kumo": "^2.14.0",
     "@phosphor-icons/react": "^2.1.10",
     "html-to-text": "^10.0.1",
     "htmlparser2": "^12.0.0",
